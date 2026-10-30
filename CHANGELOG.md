@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.8] - 2026-10-30
+
+### Bug Fixes
+
+- **twitch**: Make the twitch.tv sign-in work on macOS ([a393998](https://github.com/jacobcaraballo/multistream/commit/a39399819210a273cbab434b358aebdc432a1b58))
+- **ui**: Stop closed dialogs leaving the app dimmed and unclickable ([0f7183d](https://github.com/jacobcaraballo/multistream/commit/0f7183db4c18baee2223766c37337be59d837257))
+
+### Features
+
+- **vods**: Replay chat in sync with VOD playback ([7d1459a](https://github.com/jacobcaraballo/multistream/commit/7d1459a33c8262682d5c3dccad34992bd91951bf))
+
 ## [0.19.7] - 2026-10-30
 
 ### Features
