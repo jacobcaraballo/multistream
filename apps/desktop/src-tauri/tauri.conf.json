@@ -54,9 +54,9 @@
     },
     "updater": {
       "endpoints": [
-        "https://github.com/ilanzgx/multistream/releases/latest/download/latest.json"
+        "https://github.com/jacobcaraballo/multistream/releases/latest/download/latest.json"
       ],
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQxMjM4MkE3QUJBNkMzNDAKUldSQXc2YXJwNElqUVRzSEVDUW95NHNsWjB5dFlORGxxTkZVR25mZkV3TkhLYWVubUNOUUhXZ1UK"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDZBRjhFMjgwRkI2OEE2NjYKUldSbXBtajdnT0w0YWtncHJrWW9zQ0k4cnN3WHRtU1g5a0pqTUowOW1zRTE4TVVYeVNtME4xeHkK"
     }
   }
 }

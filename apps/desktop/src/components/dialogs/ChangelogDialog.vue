@@ -98,8 +98,8 @@ async function openExternalLink(url: string) {
 async function fetchChangelog() {
   state.value = { status: "loading" };
   const cleanVer = appVersion.replace(/^v/, "");
-  const tagUrl = `https://api.github.com/repos/ilanzgx/multistream/releases/tags/v${cleanVer}`;
-  const latestUrl = "https://api.github.com/repos/ilanzgx/multistream/releases/latest";
+  const tagUrl = `https://api.github.com/repos/${APP_LINKS.github.slug}/releases/tags/v${cleanVer}`;
+  const latestUrl = `https://api.github.com/repos/${APP_LINKS.github.slug}/releases/latest`;
 
   try {
     let response = await fetch(tagUrl, {

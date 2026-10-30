@@ -252,3 +252,4 @@ _(See [`multistream-website`](.agents/skills/website/SKILL.md) for full guide)_
 
 - **[`docs/architecture.md`](docs/architecture.md)**: Operational map for monorepo systems, frontend, backend IPC, and QA gates.
 - **[`docs/youtube-live-architecture.md`](docs/youtube-live-architecture.md)**: Operational map for YouTube scraping, anti-429 semaphore, and pagination bypass.
+- **[`docs/fork-releases.md`](docs/fork-releases.md)**: How this fork signs and publishes its own releases and in-app updates, syncs with upstream, and picks version numbers.

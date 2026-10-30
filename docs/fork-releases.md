@@ -1,0 +1,71 @@
+# Fork Releases & Updates
+
+This repository is a fork of [ilanzgx/multistream](https://github.com/ilanzgx/multistream). It ships its own builds and its own in-app updates: installed copies of this fork only ever update from **this** repo's releases, never from upstream's.
+
+## How it works
+
+- **Update feed:** `plugins.updater.endpoints` in `apps/desktop/src-tauri/tauri.conf.json` points at this repo's `releases/latest/download/latest.json`.
+- **Signature:** `plugins.updater.pubkey` is this fork's public key. The matching private key lives at `~/.tauri/multistream-fork.key` on the maintainer's machine and in the `TAURI_SIGNING_PRIVATE_KEY` repo secret. The app rejects any update not signed with it.
+  - **Back the private key up** (e.g. a password manager). If it is lost, installed copies can never auto-update again and need a manual reinstall of a build carrying a new public key.
+- **Release workflow:** `.github/workflows/release.yml` derives every URL from `GITHUB_REPOSITORY`, so the same file works upstream and here. The Homebrew steps only run in `ilanzgx/multistream`.
+- **App links:** `GITHUB_REPO` in `apps/desktop/src/config/links.ts` drives the releases link, the extension download and the in-app changelog. Issues still point upstream.
+- **App identifier:** stays `com.ilanzgx.multistream`, so a fork build installs over an upstream build in place and keeps favorites, recents and settings.
+
+## One-time setup
+
+1. **Repo secrets** (Settings → Secrets and variables → Actions):
+
+   ```bash
+   gh secret set TAURI_SIGNING_PRIVATE_KEY -R jacobcaraballo/multistream < ~/.tauri/multistream-fork.key
+   ```
+
+   The key has no password, so `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` can stay unset.
+   Optional, for Twitch/Kick login in release builds: `TWITCH_CLIENT_ID`, `KICK_CLIENT_ID`, `KICK_CLIENT_SECRET` from your own developer apps. Twitch uses the device-code flow (no redirect URL). Kick redirects through `https://usemultistream.vercel.app/en/` and `/pt-br/`, so register those as redirect URLs.
+
+2. **Baseline tag:** push upstream's `v0.19.5` tag **before** enabling Actions (pushing a `v*` tag runs the release workflow). It gives the first release a previous tag to diff against, so its notes don't list the whole project history.
+
+   ```bash
+   git push origin v0.19.5
+   ```
+
+3. **Enable Actions:** GitHub disables workflows in forks until you click "I understand my workflows, go ahead and enable them" on the repo's **Actions** tab.
+
+4. **First release + manual install:** cut a release (below), download the installer for your platform from the release page and install it over the current app. This one install is unavoidable: an upstream build only trusts upstream's key and feed. Every later update arrives through the app's updater.
+
+   macOS builds are not code-signed (no Apple secrets in the workflow), so the first launch needs right-click → **Open**.
+
+## Pulling upstream changes
+
+`upstream` is configured with `tagOpt = --no-tags`, so fetching never brings upstream's tags:
+
+```bash
+git fetch upstream
+git merge upstream/main
+```
+
+When resolving conflicts:
+
+- **Version files** (`package.json`s, `tauri.conf.json` `version`, `Cargo.toml`, extension `manifest.json`): keep the **higher** version.
+- **Updater endpoint/pubkey, `links.ts` `GITHUB_REPO`, `cliff.toml` commit URL:** keep this fork's values.
+
+Never run `git push --tags`: your local clone may hold upstream's tags, and each pushed `v*` tag starts a release build. Push tags one by one.
+
+## Releasing
+
+```bash
+bun run version 0.19.6          # syncs every version field and regenerates CHANGELOG.md
+git commit -am "chore(bump): update version to v0.19.6"
+git tag v0.19.6
+git push origin main
+git push origin v0.19.6         # builds Windows/macOS/Linux and publishes latest.json
+```
+
+The build takes roughly 20–45 minutes. Running apps pick the update up on their next update check.
+
+### Choosing version numbers
+
+The updater only installs a version **higher** than the installed one, and this fork carries upstream's code plus its own:
+
+- Upstream released a higher version (e.g. `0.20.0`): merge it, then release that same number.
+- Fork-only changes: bump the patch (`0.19.5` → `0.19.6`).
+- Upstream later ships a number you already used: release the next patch above both.
