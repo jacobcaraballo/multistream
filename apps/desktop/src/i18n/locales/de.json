@@ -567,7 +567,9 @@
       "waiting": "Holt die Live-Übertragung ein…",
       "jumpHere": "Zu diesem VOD springen",
       "jumpToLatest": "Zum Neuesten springen",
-      "wallClock": "Ursprüngliche Sendezeit"
+      "wallClock": "Ursprüngliche Sendezeit",
+      "speed": "Tempo",
+      "quality": "Qualität"
     },
     "sync": {
       "label": "VOD-Zeitleiste",
@@ -588,6 +590,10 @@
     "toasts": {
       "added": "VOD von {name} hinzugefügt",
       "alreadyAdded": "Dieses VOD ist bereits im Raster"
+    },
+    "speed": {
+      "title": "Wiedergabegeschwindigkeit",
+      "normal": "Normal"
     }
   }
 }

@@ -303,4 +303,84 @@ describe("useVodSync", () => {
     expect(videoB.currentTime).toBe(42);
     expect(sync.phases[bId]).toBe("active");
   });
+
+  it("should run the shared clock at the chosen speed and drive every player at it", async () => {
+    // Arrange
+    const { aId, bId, a, b } = addTwoVods();
+    const videoA = register(aId, a);
+    const videoB = register(bId, b);
+    await nextTick();
+    const start = sync.position.value;
+
+    // Act
+    sync.setSpeed(2);
+
+    // Assert
+    expect(sync.speed.value).toBe(2);
+    expect(videoA.playbackRate).toBe(2);
+    expect(videoB.playbackRate).toBe(2);
+
+    // Act
+    vi.advanceTimersByTime(1000);
+
+    // Assert
+    expect(sync.position.value - start).toBeGreaterThanOrEqual(1800);
+  });
+
+  it("should not rescale time that already elapsed when the speed changes", async () => {
+    // Arrange
+    const { aId, bId, a, b } = addTwoVods();
+    register(aId, a);
+    register(bId, b);
+    await nextTick();
+    const start = sync.position.value;
+    vi.advanceTimersByTime(1000);
+
+    // Act
+    sync.setSpeed(2);
+
+    // Assert
+    expect(sync.position.value - start).toBeGreaterThanOrEqual(800);
+    expect(sync.position.value - start).toBeLessThanOrEqual(1200);
+  });
+
+  it("should step speed through the presets", () => {
+    // Arrange
+    const { aId, a } = addTwoVods();
+    register(aId, a);
+
+    // Act
+    sync.stepSpeed(1);
+    sync.stepSpeed(1);
+
+    // Assert
+    expect(sync.speed.value).toBe(1.5);
+
+    // Act
+    sync.stepSpeed(-1);
+
+    // Assert
+    expect(sync.speed.value).toBe(1.25);
+  });
+
+  it("should fall back to normal speed once it catches up with a recording", () => {
+    // Arrange
+    const live = makeVod("live", T0, 2 * HOUR_S, true);
+    const video = register(addVod(live).id, live);
+    const latest = T0 + 2 * HOUR_S * 1000 - LIVE_EDGE_BUFFER_MS;
+    sync.seek(latest - 60_000);
+
+    // Act
+    sync.setSpeed(2);
+
+    // Assert
+    expect(sync.speed.value).toBe(2);
+
+    // Act
+    sync.jumpToLatest();
+
+    // Assert
+    expect(sync.speed.value).toBe(1);
+    expect(video.playbackRate).toBe(1);
+  });
 });

@@ -567,7 +567,9 @@
       "waiting": "लाइव प्रसारण के साथ तालमेल बिठाया जा रहा है…",
       "jumpHere": "इस VOD पर जाएँ",
       "jumpToLatest": "नवीनतम पर जाएँ",
-      "wallClock": "मूल प्रसारण समय"
+      "wallClock": "मूल प्रसारण समय",
+      "speed": "स्पीड",
+      "quality": "क्वालिटी"
     },
     "sync": {
       "label": "VOD टाइमलाइन",
@@ -588,6 +590,10 @@
     "toasts": {
       "added": "{name} का VOD जोड़ा गया",
       "alreadyAdded": "यह VOD पहले से ग्रिड में है"
+    },
+    "speed": {
+      "title": "प्लेबैक स्पीड",
+      "normal": "सामान्य"
     }
   }
 }

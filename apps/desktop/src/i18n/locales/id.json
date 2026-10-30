@@ -567,7 +567,9 @@
       "waiting": "Mengejar siaran langsung…",
       "jumpHere": "Lompat ke VOD ini",
       "jumpToLatest": "Lompat ke terbaru",
-      "wallClock": "Waktu siaran asli"
+      "wallClock": "Waktu siaran asli",
+      "speed": "Kecepatan",
+      "quality": "Kualitas"
     },
     "sync": {
       "label": "Linimasa VOD",
@@ -588,6 +590,10 @@
     "toasts": {
       "added": "VOD {name} ditambahkan",
       "alreadyAdded": "VOD ini sudah ada di grid"
+    },
+    "speed": {
+      "title": "Kecepatan putar",
+      "normal": "Normal"
     }
   }
 }

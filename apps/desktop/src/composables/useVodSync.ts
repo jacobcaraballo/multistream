@@ -11,6 +11,7 @@ import {
   isHoldingClock,
   latestPlayablePosition,
   mediaTarget,
+  nextPlaybackSpeed,
   planCorrection,
   positionForMediaTime,
   type Timeline,
@@ -35,12 +36,17 @@ const TICK_MS = 200;
 const PERSIST_EVERY_MS = 2000;
 const OFFSET_STEP_S = 0.5;
 
+const setRate = (video: HTMLVideoElement, rate: number) => {
+  if (Math.abs(video.playbackRate - rate) > 0.001) video.playbackRate = rate;
+};
+
 /**
  * @brief Shared wall-clock that keeps every VOD tile on the same moment in time
  *
  * One virtual clock (epoch ms) drives all VOD players. Each tick maps the clock to every
  * player's media time, holds the clock while any in-range player is buffering or seeking,
- * and corrects drift with small playbackRate nudges (hard seek for large drift).
+ * and corrects drift with small playbackRate nudges (hard seek for large drift). The clock
+ * can run faster or slower than real time; every player's rate follows the shared speed.
  * VODs that don't cover the current moment are paused behind a "starts in / ended" overlay.
  */
 const _useVodSync = () => {
@@ -56,6 +62,7 @@ const _useVodSync = () => {
 
   const isPlaying = ref(true);
   const isStalled = ref(false);
+  const speed = ref(1);
   const position = ref(0);
   const ranges = shallowRef<VodRange[]>([]);
   const timeline = shallowRef<Timeline | null>(null);
@@ -67,11 +74,18 @@ const _useVodSync = () => {
   let lastPersist = 0;
   let intervalId: ReturnType<typeof setInterval> | null = null;
 
-  const clockNow = () => (running ? anchorWall + (performance.now() - anchorPerf) : anchorWall);
+  const clockNow = () =>
+    running ? anchorWall + (performance.now() - anchorPerf) * speed.value : anchorWall;
   const setClock = (wallMs: number, run: boolean) => {
     anchorWall = wallMs;
     anchorPerf = performance.now();
     running = run;
+  };
+
+  // re-anchor first so time already elapsed isn't rescaled by the new speed
+  const applySpeed = (next: number) => {
+    setClock(clockNow(), running);
+    speed.value = next;
   };
 
   const vodStreams = computed(() => streams.value.filter((s): s is VodStream => !!s.vod));
@@ -118,7 +132,7 @@ const _useVodSync = () => {
 
       if (phases[s.id] !== "active") {
         if (!video.paused) video.pause();
-        if (video.playbackRate !== 1) video.playbackRate = 1;
+        setRate(video, speed.value);
         // park upcoming VODs at their first frame so they start instantly
         if (phases[s.id] === "before" && video.currentTime > PAUSED_TOLERANCE_S && !video.seeking) {
           video.currentTime = 0;
@@ -130,7 +144,7 @@ const _useVodSync = () => {
       const target = mediaTarget(pos, state.startMs, offsetOf(s.id));
       const plan = planCorrection(video.currentTime, target, running, video.paused);
       if (plan.seekTo !== null) video.currentTime = plan.seekTo;
-      if (video.playbackRate !== plan.rate) video.playbackRate = plan.rate;
+      setRate(video, speed.value * plan.rate);
       if (plan.pause) video.pause();
       if (plan.play) video.play().catch(() => {});
     }
@@ -164,6 +178,12 @@ const _useVodSync = () => {
       const reachedEnd = !!nextTimeline && pos >= nextTimeline.endMs;
       if (reachedEnd && !nextRanges.some((r) => r.isRecording)) isPlaying.value = false;
       setClock(pos, running && isPlaying.value);
+    }
+
+    // recordings can't be watched faster than they are produced
+    if (speed.value > 1) {
+      const latest = latestPlayablePosition(nextRanges);
+      if (latest !== null && pos >= latest) applySpeed(1);
     }
 
     let holding = false;
@@ -302,6 +322,14 @@ const _useVodSync = () => {
     play();
   };
 
+  const setSpeed = (next: number) => {
+    if (next === speed.value || next <= 0) return;
+    applySpeed(next);
+    tick();
+  };
+
+  const stepSpeed = (direction: 1 | -1) => setSpeed(nextPlaybackSpeed(speed.value, direction));
+
   const canJumpToLatest = computed(() => ranges.value.some((r) => r.isRecording));
 
   const nudgeOffset = (id: string, direction: 1 | -1) => {
@@ -351,6 +379,7 @@ const _useVodSync = () => {
     timeline,
     isPlaying,
     isStalled,
+    speed,
     canJumpToLatest,
     registerPlayer,
     updatePlayer,
@@ -364,6 +393,8 @@ const _useVodSync = () => {
     togglePlay,
     jumpToVod,
     jumpToLatest,
+    setSpeed,
+    stepSpeed,
     nudgeOffset,
     resetOffset,
     setSyncEnabled,

@@ -32,7 +32,7 @@ import { useVodSync } from "@/composables/useVodSync";
 import { useStreams } from "@/composables/useStreams";
 import { useNetworkStatus } from "@/composables/useNetworkStatus";
 import { formatClock, formatSpan, stripEndlist, vodErrorKey, type Vod } from "@/lib/vod";
-import { LIVE_EDGE_BUFFER_MS, mediaTarget } from "@/lib/vodSync";
+import { LIVE_EDGE_BUFFER_MS, PLAYBACK_SPEEDS, mediaTarget } from "@/lib/vodSync";
 
 const props = defineProps<{
   streamId: string;
@@ -54,7 +54,7 @@ const sync = useVodSync();
 
 const videoRef = ref<HTMLVideoElement | null>(null);
 const containerRef = ref<HTMLDivElement | null>(null);
-const qualityMenuRef = ref<HTMLDivElement | null>(null);
+const settingsMenuRef = ref<HTMLDivElement | null>(null);
 
 const isLoading = ref(true);
 const isBuffering = ref(false);
@@ -64,8 +64,9 @@ const isMuted = ref(true);
 const volume = ref([50]);
 const isFullscreen = ref(false);
 const showControls = ref(true);
-const qualityMenuOpen = ref(false);
+const settingsMenuOpen = ref(false);
 const localPaused = ref(true);
+const localSpeed = ref(1);
 const currentTime = ref(0);
 const scrubValue = ref<number | null>(null);
 const startMs = ref(props.vod.startedAt);
@@ -86,14 +87,16 @@ let stallRecoveries = 0;
 let currentLoadId = 0;
 let isDisposed = false;
 
-onClickOutside(qualityMenuRef, () => {
-  qualityMenuOpen.value = false;
+onClickOutside(settingsMenuRef, () => {
+  settingsMenuOpen.value = false;
 });
 
 const platform = computed(() => PLATFORMS[props.vod.platform]);
 const isSynced = computed(() => sync.syncEnabled.value);
 const isCompact = computed(() => !props.isFocused && !isFullscreen.value);
 const isPlaying = computed(() => (isSynced.value ? sync.isPlaying.value : !localPaused.value));
+const currentSpeed = computed(() => (isSynced.value ? sync.speed.value : localSpeed.value));
+const speedLabel = (speed: number) => (speed === 1 ? t("vods.speed.normal") : `${speed}x`);
 const phase = computed(() => sync.phases[props.streamId] ?? "loading");
 const hasError = computed(() => !!errorKey.value);
 
@@ -376,11 +379,26 @@ function onVolumeChange(val: number[] | undefined) {
   video.muted = isMuted.value;
 }
 
+function setSpeed(next: number) {
+  settingsMenuOpen.value = false;
+  if (isSynced.value) {
+    sync.setSpeed(next);
+    return;
+  }
+  localSpeed.value = next;
+  applyLocalSpeed();
+}
+
+// media loads reset playbackRate to its default, and the sync engine only drives it while synced
+function applyLocalSpeed() {
+  if (!isSynced.value && videoRef.value) videoRef.value.playbackRate = localSpeed.value;
+}
+
 function setQuality(index: number) {
   if (!hls) return;
   hls.currentLevel = index;
   currentLevelIndex.value = index;
-  qualityMenuOpen.value = false;
+  settingsMenuOpen.value = false;
 }
 
 async function toggleFullscreen() {
@@ -400,13 +418,13 @@ function resetHideTimer() {
   if (hideTimer) clearTimeout(hideTimer);
   showControls.value = true;
   hideTimer = setTimeout(() => {
-    if (!qualityMenuOpen.value && scrubValue.value === null) showControls.value = false;
+    if (!settingsMenuOpen.value && scrubValue.value === null) showControls.value = false;
   }, 2500);
 }
 
 function onMouseLeave() {
   if (hideTimer) clearTimeout(hideTimer);
-  if (!qualityMenuOpen.value) showControls.value = false;
+  if (!settingsMenuOpen.value) showControls.value = false;
 }
 
 function handleVideoClick() {
@@ -495,8 +513,14 @@ watch(
   { immediate: true }
 );
 
-watch(qualityMenuOpen, (open) => {
+watch(settingsMenuOpen, (open) => {
   if (!open) resetHideTimer();
+});
+
+watch(isSynced, (synced) => {
+  if (synced) return;
+  localSpeed.value = sync.speed.value;
+  applyLocalSpeed();
 });
 
 watch(isOnline, (online) => {
@@ -617,6 +641,7 @@ onBeforeUnmount(() => {
       @waiting="onWaiting"
       @seeking="onWaiting"
       @play="localPaused = false"
+      @loadedmetadata="applyLocalSpeed"
       @playing="onPlaying"
       @seeked="isBuffering = false"
       @canplay="isBuffering = false"
@@ -715,6 +740,13 @@ onBeforeUnmount(() => {
               {{ formatClock(scrubValue ?? currentTime) }} / {{ formatClock(endS) }}
             </span>
             <span
+              v-if="currentSpeed !== 1"
+              class="px-1 py-0.5 rounded bg-white/10 text-white/90 font-semibold tabular-nums"
+              :class="isCompact ? 'text-[9px]' : 'text-[10px]'"
+              :data-testid="`vod-speed-badge-${vod.id}`"
+              >{{ currentSpeed }}x</span
+            >
+            <span
               v-if="!isCompact"
               class="hidden sm:flex items-center gap-1 text-[11px] text-gray-400 tabular-nums"
               :title="t('vods.player.wallClock')"
@@ -736,12 +768,12 @@ onBeforeUnmount(() => {
               {{ t("vods.player.jumpToLatest") }}
             </button>
 
-            <div ref="qualityMenuRef" class="relative" :class="{ 'ml-auto': !isRecording }">
+            <div ref="settingsMenuRef" class="relative" :class="{ 'ml-auto': !isRecording }">
               <button
                 type="button"
                 class="text-white/90 hover:text-white transition-colors cursor-pointer p-1 flex items-center gap-1"
                 :aria-label="t('common.settings')"
-                @click="qualityMenuOpen = !qualityMenuOpen"
+                @click="settingsMenuOpen = !settingsMenuOpen"
               >
                 <Settings class="size-4" />
                 <span v-if="!isCompact" class="text-gray-300 text-xs">{{
@@ -750,35 +782,64 @@ onBeforeUnmount(() => {
               </button>
               <Transition name="hud-fade">
                 <div
-                  v-if="qualityMenuOpen"
-                  class="absolute bottom-full right-0 mb-2 bg-[#1a1c20]/95 backdrop-blur-md border border-white/10 rounded-lg py-1 min-w-30 shadow-xl"
+                  v-if="settingsMenuOpen"
+                  class="absolute bottom-full right-0 mb-2 bg-[#1a1c20]/95 backdrop-blur-md border border-white/10 rounded-lg py-1 shadow-xl flex max-h-60 overflow-y-auto"
                 >
-                  <button
-                    type="button"
-                    class="w-full text-left px-3 py-1.5 text-xs cursor-pointer transition-colors"
-                    :class="
-                      currentLevelIndex === -1
-                        ? 'text-white bg-white/10'
-                        : 'text-gray-300 hover:bg-white/5 hover:text-white'
-                    "
-                    @click="setQuality(-1)"
+                  <div class="min-w-24" role="group" :aria-label="t('vods.speed.title')">
+                    <p class="px-3 pt-1 pb-0.5 text-[10px] uppercase tracking-wider text-gray-500">
+                      {{ t("vods.player.speed") }}
+                    </p>
+                    <button
+                      v-for="speed in PLAYBACK_SPEEDS"
+                      :key="speed"
+                      type="button"
+                      class="w-full text-left px-3 py-1.5 text-xs cursor-pointer transition-colors tabular-nums"
+                      :class="
+                        currentSpeed === speed
+                          ? 'text-white bg-white/10'
+                          : 'text-gray-300 hover:bg-white/5 hover:text-white'
+                      "
+                      :data-testid="`vod-speed-${speed}`"
+                      @click="setSpeed(speed)"
+                    >
+                      {{ speedLabel(speed) }}
+                    </button>
+                  </div>
+                  <div
+                    class="min-w-24 border-l border-white/10"
+                    role="group"
+                    :aria-label="t('vods.player.quality')"
                   >
-                    {{ t("nativePlayer.quality.auto") }}
-                  </button>
-                  <button
-                    v-for="(level, idx) in availableLevels"
-                    :key="idx"
-                    type="button"
-                    class="w-full text-left px-3 py-1.5 text-xs cursor-pointer transition-colors"
-                    :class="
-                      currentLevelIndex === idx
-                        ? 'text-white bg-white/10'
-                        : 'text-gray-300 hover:bg-white/5 hover:text-white'
-                    "
-                    @click="setQuality(idx)"
-                  >
-                    {{ level.label }}
-                  </button>
+                    <p class="px-3 pt-1 pb-0.5 text-[10px] uppercase tracking-wider text-gray-500">
+                      {{ t("vods.player.quality") }}
+                    </p>
+                    <button
+                      type="button"
+                      class="w-full text-left px-3 py-1.5 text-xs cursor-pointer transition-colors"
+                      :class="
+                        currentLevelIndex === -1
+                          ? 'text-white bg-white/10'
+                          : 'text-gray-300 hover:bg-white/5 hover:text-white'
+                      "
+                      @click="setQuality(-1)"
+                    >
+                      {{ t("nativePlayer.quality.auto") }}
+                    </button>
+                    <button
+                      v-for="(level, idx) in availableLevels"
+                      :key="idx"
+                      type="button"
+                      class="w-full text-left px-3 py-1.5 text-xs cursor-pointer transition-colors"
+                      :class="
+                        currentLevelIndex === idx
+                          ? 'text-white bg-white/10'
+                          : 'text-gray-300 hover:bg-white/5 hover:text-white'
+                      "
+                      @click="setQuality(idx)"
+                    >
+                      {{ level.label }}
+                    </button>
+                  </div>
                 </div>
               </Transition>
             </div>

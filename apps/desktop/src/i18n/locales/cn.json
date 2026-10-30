@@ -567,7 +567,9 @@
       "waiting": "正在追赶直播进度…",
       "jumpHere": "跳转到此录像",
       "jumpToLatest": "跳到最新",
-      "wallClock": "原始直播时间"
+      "wallClock": "原始直播时间",
+      "speed": "速度",
+      "quality": "画质"
     },
     "sync": {
       "label": "录像时间轴",
@@ -588,6 +590,10 @@
     "toasts": {
       "added": "已添加 {name} 的录像",
       "alreadyAdded": "此录像已在网格中"
+    },
+    "speed": {
+      "title": "播放速度",
+      "normal": "正常"
     }
   }
 }

@@ -10,6 +10,7 @@ import {
   isHoldingClock,
   latestPlayablePosition,
   mediaTarget,
+  nextPlaybackSpeed,
   planCorrection,
   positionForMediaTime,
   type VodRange,
@@ -218,5 +219,26 @@ describe("clampPosition", () => {
     expect(clampPosition(15, timeline)).toBe(15);
     expect(clampPosition(25, timeline)).toBe(20);
     expect(clampPosition(25, null)).toBe(25);
+  });
+});
+
+describe("nextPlaybackSpeed", () => {
+  it("should step through the preset speeds", () => {
+    // Act / Assert
+    expect(nextPlaybackSpeed(1, 1)).toBe(1.25);
+    expect(nextPlaybackSpeed(1, -1)).toBe(0.75);
+    expect(nextPlaybackSpeed(1.75, 1)).toBe(2);
+  });
+
+  it("should stop at the ends of the preset list", () => {
+    // Act / Assert
+    expect(nextPlaybackSpeed(2, 1)).toBe(2);
+    expect(nextPlaybackSpeed(0.5, -1)).toBe(0.5);
+  });
+
+  it("should snap an off-list speed to the nearest preset in that direction", () => {
+    // Act / Assert
+    expect(nextPlaybackSpeed(1.1, 1)).toBe(1.25);
+    expect(nextPlaybackSpeed(1.1, -1)).toBe(1);
   });
 });

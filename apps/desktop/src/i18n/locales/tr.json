@@ -567,7 +567,9 @@
       "waiting": "Canlı yayına yetişiliyor…",
       "jumpHere": "Bu VOD'a git",
       "jumpToLatest": "En yeniye git",
-      "wallClock": "Orijinal yayın saati"
+      "wallClock": "Orijinal yayın saati",
+      "speed": "Hız",
+      "quality": "Kalite"
     },
     "sync": {
       "label": "VOD zaman çizelgesi",
@@ -588,6 +590,10 @@
     "toasts": {
       "added": "{name} VOD'u eklendi",
       "alreadyAdded": "Bu VOD zaten ızgarada"
+    },
+    "speed": {
+      "title": "Oynatma hızı",
+      "normal": "Normal"
     }
   }
 }

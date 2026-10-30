@@ -24,6 +24,7 @@ export interface Timeline {
 
 export interface Correction {
   seekTo: number | null;
+  /** Multiplier applied on top of the shared playback speed. */
   rate: number;
   play: boolean;
   pause: boolean;
@@ -38,6 +39,7 @@ export const HARD_SEEK_S = 2;
 /** While playing, drift beyond this is corrected by nudging playbackRate. */
 export const SOFT_DRIFT_S = 0.12;
 export const MAX_RATE_NUDGE = 0.1;
+export const PLAYBACK_SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] as const;
 /** How far behind the newest recorded second "jump to latest" lands. */
 export const LIVE_EDGE_BUFFER_MS = 30_000;
 
@@ -155,6 +157,14 @@ export function latestPlayablePosition(ranges: VodRange[]): number | null {
   const edge = Math.min(...recording.map((r) => r.endMs));
   const start = Math.max(...recording.map((r) => r.startMs));
   return Math.max(start, edge - LIVE_EDGE_BUFFER_MS);
+}
+
+/** Next preset speed up or down from `current`, staying on the preset list. */
+export function nextPlaybackSpeed(current: number, direction: 1 | -1): number {
+  const speeds: readonly number[] = PLAYBACK_SPEEDS;
+  if (direction === 1)
+    return speeds.find((s) => s > current) ?? speeds[speeds.length - 1] ?? current;
+  return speeds.findLast((s) => s < current) ?? speeds[0] ?? current;
 }
 
 export function clampPosition(positionMs: number, timeline: Timeline | null): number {

@@ -567,7 +567,9 @@
       "waiting": "Catching up with the live broadcast…",
       "jumpHere": "Jump to this VOD",
       "jumpToLatest": "Jump to latest",
-      "wallClock": "Original broadcast time"
+      "wallClock": "Original broadcast time",
+      "speed": "Speed",
+      "quality": "Quality"
     },
     "sync": {
       "label": "VOD timeline",
@@ -588,6 +590,10 @@
     "toasts": {
       "added": "{name} VOD added",
       "alreadyAdded": "This VOD is already in the grid"
+    },
+    "speed": {
+      "title": "Playback speed",
+      "normal": "Normal"
     }
   }
 }

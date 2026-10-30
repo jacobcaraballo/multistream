@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { useStorage } from "@vueuse/core";
+import { onClickOutside, useStorage } from "@vueuse/core";
 import {
   Play,
   Pause,
@@ -18,7 +18,7 @@ import { Switch } from "@/components/ui/switch";
 import { PLATFORMS } from "@/config/platforms";
 import { useVodSync } from "@/composables/useVodSync";
 import { formatSpan } from "@/lib/vod";
-import { anyRangesOverlap } from "@/lib/vodSync";
+import { PLAYBACK_SPEEDS, anyRangesOverlap } from "@/lib/vodSync";
 
 const { t, locale } = useI18n();
 const {
@@ -31,12 +31,15 @@ const {
   timeline,
   isPlaying,
   isStalled,
+  speed,
   canJumpToLatest,
   seek,
   seekBy,
   togglePlay,
   jumpToVod,
   jumpToLatest,
+  setSpeed,
+  stepSpeed,
   nudgeOffset,
   resetOffset,
   setSyncEnabled,
@@ -46,6 +49,17 @@ const expanded = useStorage("vod-sync-bar-expanded", true);
 const trackRef = ref<HTMLDivElement | null>(null);
 const scrubPos = ref<number | null>(null);
 const hoverPos = ref<number | null>(null);
+const speedMenuRef = ref<HTMLDivElement | null>(null);
+const speedMenuOpen = ref(false);
+
+onClickOutside(speedMenuRef, () => {
+  speedMenuOpen.value = false;
+});
+
+function chooseSpeed(next: number) {
+  setSpeed(next);
+  speedMenuOpen.value = false;
+}
 
 const span = computed(() => {
   const tl = timeline.value;
@@ -149,6 +163,9 @@ function onTrackKeydown(e: KeyboardEvent) {
   } else if (e.key === " ") {
     e.preventDefault();
     togglePlay();
+  } else if (e.key === ">" || e.key === "<") {
+    e.preventDefault();
+    stepSpeed(e.key === ">" ? 1 : -1);
   }
 }
 </script>
@@ -191,6 +208,49 @@ function onTrackKeydown(e: KeyboardEvent) {
         >
           <FastForward class="size-4" aria-hidden="true" />
         </button>
+
+        <div ref="speedMenuRef" class="relative">
+          <button
+            type="button"
+            data-testid="vod-sync-speed"
+            class="min-w-9 px-1.5 py-1 rounded-md text-[11px] font-semibold tabular-nums transition-colors cursor-pointer"
+            :class="
+              speed !== 1
+                ? 'text-white bg-white/10 hover:bg-white/15'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+            "
+            :aria-label="t('vods.speed.title')"
+            :title="t('vods.speed.title')"
+            aria-haspopup="menu"
+            :aria-expanded="speedMenuOpen"
+            @click="speedMenuOpen = !speedMenuOpen"
+          >
+            {{ speed }}x
+          </button>
+          <div
+            v-if="speedMenuOpen"
+            role="menu"
+            class="absolute bottom-full left-0 mb-2 z-50 bg-[#1a1c20]/95 backdrop-blur-md border border-white/10 rounded-lg py-1 min-w-24 shadow-xl"
+          >
+            <button
+              v-for="option in PLAYBACK_SPEEDS"
+              :key="option"
+              type="button"
+              role="menuitemradio"
+              :aria-checked="speed === option"
+              :data-testid="`vod-sync-speed-${option}`"
+              class="w-full text-left px-3 py-1.5 text-xs tabular-nums cursor-pointer transition-colors"
+              :class="
+                speed === option
+                  ? 'text-white bg-white/10'
+                  : 'text-gray-300 hover:bg-white/5 hover:text-white'
+              "
+              @click="chooseSpeed(option)"
+            >
+              {{ option === 1 ? t("vods.speed.normal") : `${option}x` }}
+            </button>
+          </div>
+        </div>
 
         <span
           class="text-xs font-medium tabular-nums text-[#eaeaea] whitespace-nowrap"
