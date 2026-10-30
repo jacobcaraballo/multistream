@@ -210,6 +210,16 @@
       "streamError": "Kesalahan perekaman: {error}",
       "customNotSupported": "Perekaman tidak didukung untuk stream kustom.",
       "orphanFound": "Ditemukan {count} rekaman tidak lengkap"
+    },
+    "twitchWeb": {
+      "title": "Pemutaran Twitch tanpa iklan",
+      "description": "Masuk di twitch.tv agar pemutar bawaan dan VOD memakai Turbo dan langganan Anda: tanpa iklan di tempat Anda sudah membayar untuk itu, dan VOD khusus pelanggan bisa diputar.",
+      "signIn": "Masuk di twitch.tv",
+      "signingIn": "Menunggu masuk twitch.tv…",
+      "turbo": "Turbo aktif",
+      "error": "Tidak dapat membuka jendela masuk twitch.tv.",
+      "sectionTitle": "Pemutaran",
+      "sectionDescription": "Memakai login twitch.tv Anda. Ini terpisah dari koneksi chat Twitch di atas."
     }
   },
   "share": {

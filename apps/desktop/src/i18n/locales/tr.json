@@ -210,6 +210,16 @@
       "streamError": "Kayıt hatası: {error}",
       "customNotSupported": "Özel yayınlar için kayıt desteklenmez.",
       "orphanFound": "{count} eksik kayıt bulundu"
+    },
+    "twitchWeb": {
+      "title": "Reklamsız Twitch oynatma",
+      "description": "Yerleşik oynatıcının ve VOD'ların Turbo ve aboneliklerinizi kullanması için twitch.tv'de oturum açın: reklamsız olması için ödeme yaptığınız yerlerde reklam yok, yalnızca abonelere açık VOD'lar da oynatılır.",
+      "signIn": "twitch.tv'de oturum aç",
+      "signingIn": "twitch.tv oturumu bekleniyor…",
+      "turbo": "Turbo etkin",
+      "error": "twitch.tv giriş penceresi açılamadı.",
+      "sectionTitle": "Oynatma",
+      "sectionDescription": "twitch.tv girişinizi kullanır. Yukarıdaki Twitch sohbet bağlantısından ayrıdır."
     }
   },
   "share": {

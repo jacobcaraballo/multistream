@@ -581,6 +581,7 @@ pub async fn twitch_get_followed_streams(
 
 #[tauri::command]
 pub async fn twitch_get_hls_url(
+    app: AppHandle,
     _state: State<'_, TwitchState>,
     channel: String,
 ) -> Result<String, TwitchError> {
@@ -598,7 +599,7 @@ pub async fn twitch_get_hls_url(
     {
         return Err(TwitchError::Api("Invalid channel name format".into()));
     }
-    let web_client_id = "kimne78kx3ncx6brgo4mv6wki5h1ko";
+    let web_client_id = super::web_session::WEB_CLIENT_ID;
 
     let gql_body = serde_json::json!({
         "operationName": "PlaybackAccessToken",
@@ -609,14 +610,22 @@ pub async fn twitch_get_hls_url(
         }
     });
 
-    let res = http
-        .post("https://gql.twitch.tv/gql")
-        .header("Client-ID", web_client_id)
-        .header("Client-Session-Id", format!("{:x}", rand::random::<u64>()))
-        .json(&gql_body)
-        .send()
-        .await
-        .map_err(TwitchError::Http)?;
+    // a signed-in twitch.tv session makes Twitch honor Turbo / subscriber ad benefits
+    let session = super::web_session::auth_token(&app);
+    let session_id = format!("{:x}", rand::random::<u64>());
+    let res = super::web_session::send_with_session(session.as_deref(), |auth| {
+        let req = http
+            .post(super::web_session::GQL_URL)
+            .header("Client-ID", web_client_id)
+            .header("Client-Session-Id", &session_id)
+            .json(&gql_body);
+        match auth {
+            Some(auth) => req.header("Authorization", auth),
+            None => req,
+        }
+    })
+    .await
+    .map_err(TwitchError::Http)?;
 
     if !res.status().is_success() {
         let status = res.status();

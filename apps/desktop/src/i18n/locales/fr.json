@@ -210,6 +210,16 @@
       "streamError": "Erreur d'enregistrement : {error}",
       "customNotSupported": "L'enregistrement n'est pas pris en charge pour les flux personnalisés.",
       "orphanFound": "{count} enregistrement(s) incomplet(s) trouvé(s)"
+    },
+    "twitchWeb": {
+      "title": "Lecture Twitch sans publicité",
+      "description": "Connectez-vous sur twitch.tv pour que le lecteur intégré et les VODs utilisent votre Turbo et vos abonnements : pas de pubs là où vous avez payé pour ne pas en avoir, et les VODs réservés aux abonnés se lisent.",
+      "signIn": "Se connecter sur twitch.tv",
+      "signingIn": "En attente de la connexion à twitch.tv…",
+      "turbo": "Turbo actif",
+      "error": "Impossible d'ouvrir la fenêtre de connexion twitch.tv.",
+      "sectionTitle": "Lecture",
+      "sectionDescription": "Utilise votre connexion twitch.tv. C'est distinct de la connexion au chat Twitch ci-dessus."
     }
   },
   "share": {

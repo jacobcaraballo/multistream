@@ -6,7 +6,10 @@ import ConfirmDialog from "@/components/dialogs/ConfirmDialog.vue";
 import { PLATFORMS } from "@/config/platforms";
 import { useTwitchAuth } from "@/composables/useTwitchAuth";
 import { useKickAuth } from "@/composables/useKickAuth";
-import { Users, LogOut, Check, Minus, ShieldCheck } from "@lucide/vue";
+import { useTwitchWebSession } from "@/composables/useTwitchWebSession";
+import { toast } from "@/composables/useToast";
+import { useI18n } from "vue-i18n";
+import { Users, LogOut, Check, Minus, ShieldCheck, Loader2, MonitorPlay } from "@lucide/vue";
 
 const emit = defineEmits<{
   (e: "close"): void;
@@ -18,6 +21,23 @@ const {
   logout: twitchLogout,
 } = useTwitchAuth();
 
+const { t } = useI18n();
+
+const {
+  session: twitchWebSession,
+  isSigningIn: twitchWebSigningIn,
+  signIn: twitchWebSignIn,
+  signOut: twitchWebSignOut,
+} = useTwitchWebSession();
+
+const handleTwitchWebSignIn = async () => {
+  try {
+    await twitchWebSignIn();
+  } catch {
+    toast.error(t("settings.twitchWeb.error"));
+  }
+};
+
 const {
   authenticated: kickAuthenticated,
   username: kickUsername,
@@ -28,9 +48,9 @@ const {
 const authPlatforms = Object.values(PLATFORMS).filter((p) => p.id !== "custom");
 
 const showDisconnectConfirm = ref(false);
-const pendingDisconnectPlatform = ref<"twitch" | "kick" | null>(null);
+const pendingDisconnectPlatform = ref<"twitch" | "kick" | "twitch-web" | null>(null);
 
-const requestDisconnect = (platformId: "twitch" | "kick") => {
+const requestDisconnect = (platformId: "twitch" | "kick" | "twitch-web") => {
   pendingDisconnectPlatform.value = platformId;
   showDisconnectConfirm.value = true;
 };
@@ -40,6 +60,8 @@ const confirmDisconnect = () => {
     twitchLogout();
   } else if (pendingDisconnectPlatform.value === "kick") {
     kickLogout();
+  } else if (pendingDisconnectPlatform.value === "twitch-web") {
+    twitchWebSignOut();
   }
   pendingDisconnectPlatform.value = null;
 };
@@ -47,6 +69,7 @@ const confirmDisconnect = () => {
 const pendingPlatformName = computed(() => {
   if (pendingDisconnectPlatform.value === "twitch") return "Twitch";
   if (pendingDisconnectPlatform.value === "kick") return "Kick";
+  if (pendingDisconnectPlatform.value === "twitch-web") return "twitch.tv";
   return "";
 });
 
@@ -267,6 +290,95 @@ const handleConnect = (platformId: string) => {
       >
         <ShieldCheck class="size-4 text-gray-500 shrink-0 mt-0.5" aria-hidden="true" />
         <p>{{ $t("settings.auth.disclaimer") }}</p>
+      </div>
+    </div>
+
+    <!-- Playback: twitch.tv website session, separate from the chat connection above -->
+    <div class="space-y-4">
+      <div class="flex items-center gap-2.5 px-0.5">
+        <MonitorPlay class="size-4 text-gray-400 shrink-0" aria-hidden="true" />
+        <div class="min-w-0 flex-1">
+          <h3 class="text-white text-sm font-medium">
+            {{ $t("settings.twitchWeb.sectionTitle") }}
+          </h3>
+          <p class="text-gray-400 text-xs mt-0.5">
+            {{ $t("settings.twitchWeb.sectionDescription") }}
+          </p>
+        </div>
+      </div>
+
+      <!-- Turbo / subscriber ad benefits in the built-in players -->
+      <div
+        class="border border-[#2a2d33]/60 bg-[#14161a] hover:border-[#2a2d33] rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-3 transition-all duration-150"
+        data-testid="twitch-web-session"
+      >
+        <div class="flex items-start gap-2.5 min-w-0 flex-1">
+          <span :style="{ color: PLATFORMS.twitch.color }" class="shrink-0 mt-0.5">
+            <component :is="PLATFORMS.twitch.icon" :size="16" aria-hidden="true" />
+          </span>
+          <div class="min-w-0">
+            <div class="flex items-center gap-2 flex-wrap">
+              <h4 class="text-white font-medium text-sm">{{ $t("settings.twitchWeb.title") }}</h4>
+              <span
+                v-if="twitchWebSession.connected"
+                class="inline-flex items-center gap-1.5 text-xs text-gray-300 font-medium px-2 py-0.5 rounded-full bg-[#1e2127] border border-[#2a2d33] whitespace-nowrap"
+              >
+                <span class="size-1.5 rounded-full bg-emerald-400" aria-hidden="true"></span>
+                {{
+                  twitchWebSession.hasTurbo
+                    ? $t("settings.twitchWeb.turbo")
+                    : $t("settings.auth.connected")
+                }}
+              </span>
+            </div>
+            <p class="text-gray-400 text-xs mt-1 leading-relaxed">
+              {{ $t("settings.twitchWeb.description") }}
+            </p>
+          </div>
+        </div>
+
+        <div v-if="twitchWebSession.connected" class="flex items-center gap-2 sm:w-56 shrink-0">
+          <div
+            class="min-w-0 flex-1 flex items-center gap-1.5 text-xs text-white bg-[#1e2127] border border-[#2a2d33] px-2.5 py-1.5 rounded-lg shadow-2xs"
+          >
+            <span class="text-gray-400 text-xs select-none">@</span>
+            <span class="font-medium truncate">{{
+              twitchWebSession.displayName || twitchWebSession.login
+            }}</span>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            class="border-[#2a2d33] bg-[#1e2127] text-gray-400 hover:text-red-400 hover:border-red-500/30 hover:bg-[#2a2d33] size-8 p-0 shrink-0 transition-all duration-150 select-none active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-red-400/20"
+            :title="$t('settings.auth.logout')"
+            :aria-label="$t('settings.auth.logout')"
+            @click="requestDisconnect('twitch-web')"
+          >
+            <LogOut class="size-3.5" aria-hidden="true" />
+          </Button>
+        </div>
+        <Button
+          v-else
+          type="button"
+          variant="outline"
+          size="sm"
+          data-testid="twitch-web-sign-in"
+          :disabled="twitchWebSigningIn"
+          class="sm:w-56 shrink-0 border-[#2a2d33] bg-[#1e2127] text-gray-200 hover:text-white hover:bg-[#2a2d33] text-xs h-8 font-medium transition-all duration-150 select-none active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-white/20"
+          @click="handleTwitchWebSignIn"
+        >
+          <Loader2
+            v-if="twitchWebSigningIn"
+            class="size-3.5 animate-spin mr-1.5"
+            aria-hidden="true"
+          />
+          {{
+            twitchWebSigningIn
+              ? $t("settings.twitchWeb.signingIn")
+              : $t("settings.twitchWeb.signIn")
+          }}
+        </Button>
       </div>
     </div>
   </TabsContent>

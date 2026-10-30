@@ -210,6 +210,16 @@
       "streamError": "Aufnahmefehler: {error}",
       "customNotSupported": "Aufnahme wird für benutzerdefinierte Streams nicht unterstützt.",
       "orphanFound": "{count} unvollständige Aufnahme(n) gefunden"
+    },
+    "twitchWeb": {
+      "title": "Werbefreie Twitch-Wiedergabe",
+      "description": "Melde dich auf twitch.tv an, damit der integrierte Player und VODs dein Turbo und deine Abos nutzen: keine Werbung, wo du dafür bezahlt hast, und Abonnenten-VODs werden abgespielt.",
+      "signIn": "Auf twitch.tv anmelden",
+      "signingIn": "Warte auf twitch.tv-Anmeldung…",
+      "turbo": "Turbo aktiv",
+      "error": "Das twitch.tv-Anmeldefenster konnte nicht geöffnet werden.",
+      "sectionTitle": "Wiedergabe",
+      "sectionDescription": "Nutzt deine twitch.tv-Anmeldung. Das ist getrennt von der Twitch-Chat-Verbindung oben."
     }
   },
   "share": {

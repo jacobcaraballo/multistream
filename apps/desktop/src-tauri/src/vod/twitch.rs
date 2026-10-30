@@ -4,9 +4,8 @@ use serde_json::{json, Value};
 use super::error::VodError;
 use super::proxy::rewrite_master_playlist;
 use super::types::{http_client, is_valid_channel, parse_timestamp_ms, Vod, VodPage};
+use crate::twitch::web_session::{send_with_session, GQL_URL, WEB_CLIENT_ID};
 
-const GQL_URL: &str = "https://gql.twitch.tv/gql";
-const WEB_CLIENT_ID: &str = "kimne78kx3ncx6brgo4mv6wki5h1ko";
 const PAGE_SIZE: u32 = 30;
 
 const VOD_FIELDS: &str = "id title createdAt lengthSeconds status previewThumbnailURL(width: 320, height: 180) viewCount game { displayName } owner { login displayName }";
@@ -16,12 +15,21 @@ pub fn is_valid_vod_id(id: &str) -> bool {
 }
 
 async fn gql(body: Value) -> Result<Value, VodError> {
-    let res = http_client()
-        .post(GQL_URL)
-        .header("Client-ID", WEB_CLIENT_ID)
-        .json(&body)
-        .send()
-        .await?;
+    gql_as(body, None).await
+}
+
+async fn gql_as(body: Value, session: Option<&str>) -> Result<Value, VodError> {
+    let res = send_with_session(session, |auth| {
+        let req = http_client()
+            .post(GQL_URL)
+            .header("Client-ID", WEB_CLIENT_ID)
+            .json(&body);
+        match auth {
+            Some(auth) => req.header("Authorization", auth),
+            None => req,
+        }
+    })
+    .await?;
 
     if !res.status().is_success() {
         return Err(VodError::Api(format!("Twitch GQL HTTP {}", res.status())));
@@ -123,15 +131,16 @@ pub async fn get_vod(id: &str) -> Result<Vod, VodError> {
 }
 
 /// Returns the master playlist as a data URI with every variant routed through the CDN proxy.
-pub async fn get_playback_url(id: &str) -> Result<String, VodError> {
+/// With a twitch.tv session, sub-only VODs of subscribed channels become playable.
+pub async fn get_playback_url(id: &str, session: Option<&str>) -> Result<String, VodError> {
     if !is_valid_vod_id(id) {
         return Err(VodError::Validation("Invalid Twitch VOD id".into()));
     }
 
-    let body = gql(json!({
+    let body = gql_as(json!({
         "query": "query($id: ID!) { videoPlaybackAccessToken(id: $id, params: {platform: \"web\", playerBackend: \"mediaplayer\", playerType: \"site\"}) { value signature } }",
         "variables": { "id": id }
-    }))
+    }), session)
     .await?;
 
     let token = &body["data"]["videoPlaybackAccessToken"];

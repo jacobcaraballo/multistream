@@ -210,6 +210,16 @@
       "streamError": "Error de grabación: {error}",
       "customNotSupported": "La grabación no es compatible con streams personalizados.",
       "orphanFound": "Se encontró(aron) {count} grabación(es) incompleta(s)"
+    },
+    "twitchWeb": {
+      "title": "Reproducción de Twitch sin anuncios",
+      "description": "Inicia sesión en twitch.tv para que el reproductor integrado y los VODs usen tu Turbo y tus suscripciones: sin anuncios donde ya pagaste por no verlos, y los VODs solo para suscriptores se reproducen.",
+      "signIn": "Iniciar sesión en twitch.tv",
+      "signingIn": "Esperando inicio de sesión en twitch.tv…",
+      "turbo": "Turbo activo",
+      "error": "No se pudo abrir la ventana de inicio de sesión de twitch.tv.",
+      "sectionTitle": "Reproducción",
+      "sectionDescription": "Usa tu sesión de twitch.tv. Es independiente de la conexión de chat de Twitch de arriba."
     }
   },
   "share": {

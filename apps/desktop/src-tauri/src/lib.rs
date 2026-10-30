@@ -18,6 +18,7 @@ use twitch::commands::{
     twitch_logout, twitch_send_message, twitch_set_channels,
 };
 use twitch::state::TwitchState;
+use twitch::web_session::{twitch_web_login, twitch_web_logout, twitch_web_session_state};
 
 mod kick;
 use kick::commands::{
@@ -54,7 +55,16 @@ use vod::commands::{vod_get, vod_get_playback_url, vod_list};
 const LOCALHOST_PORT: u16 = 14831;
 
 // realistic Chrome user-agent to avoid Cloudflare WebView fingerprint detection
-const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+pub(crate) const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+
+// Windows WebView2 requires all windows in the same app to share identical
+// browser arguments and user agent, otherwise it crashes.
+pub(crate) const BROWSER_ARGS: &str =
+    "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection \
+                                --disable-background-timer-throttling \
+                                --disable-backgrounding-occluded-windows \
+                                --disable-renderer-backgrounding \
+                                --autoplay-policy=no-user-gesture-required";
 
 const SCREENSHOT_SCRIPT: &str = include_str!("core/screenshot_capture.js");
 const KEYBOARD_SCRIPT: &str = include_str!("core/keyboard_shortcuts.js");
@@ -186,6 +196,9 @@ pub fn run() {
             vod_list,
             vod_get,
             vod_get_playback_url,
+            twitch_web_session_state,
+            twitch_web_login,
+            twitch_web_logout,
         ])
         .register_asynchronous_uri_scheme_protocol(
             vod::proxy::SCHEME,
@@ -339,14 +352,6 @@ pub fn run() {
                 });
             "#;
 
-            // Windows WebView2 requires all windows in the same app to share identical 
-            // browser arguments and user agent, otherwise it crashes.
-            let browser_args = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection \
-                                --disable-background-timer-throttling \
-                                --disable-backgrounding-occluded-windows \
-                                --disable-renderer-backgrounding \
-                                --autoplay-policy=no-user-gesture-required";
-
 
             // resolve url for main window
             let url = if cfg!(debug_assertions) {
@@ -369,7 +374,7 @@ pub fn run() {
                 .maximized(true)
                 .background_color(Color(31, 34, 39, 255))
                 .user_agent(USER_AGENT)
-                .additional_browser_args(browser_args)
+                .additional_browser_args(BROWSER_ARGS)
                 .initialization_script_for_all_frames(STREAM_FILTER_SCRIPT)
                 .initialization_script_for_all_frames(graveyard_script)
                 .initialization_script_for_all_frames(SCREENSHOT_SCRIPT)

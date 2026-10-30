@@ -210,6 +210,16 @@
       "streamError": "录制错误：{error}",
       "customNotSupported": "自定义流不支持录制。",
       "orphanFound": "发现 {count} 个不完整的录制"
+    },
+    "twitchWeb": {
+      "title": "无广告 Twitch 播放",
+      "description": "在 twitch.tv 登录后，内置播放器和录像将使用你的 Turbo 和订阅：已付费免广告的地方不再有广告，仅限订阅者的录像也能播放。",
+      "signIn": "在 twitch.tv 登录",
+      "signingIn": "等待 twitch.tv 登录…",
+      "turbo": "Turbo 已启用",
+      "error": "无法打开 twitch.tv 登录窗口。",
+      "sectionTitle": "播放",
+      "sectionDescription": "使用你的 twitch.tv 登录，与上方的 Twitch 聊天连接相互独立。"
     }
   },
   "share": {

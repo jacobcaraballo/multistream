@@ -1,6 +1,7 @@
 use super::error::VodError;
 use super::types::{Vod, VodPage};
 use super::{kick, twitch};
+use tauri::AppHandle;
 
 fn unsupported(platform: &str) -> VodError {
     VodError::Validation(format!(
@@ -35,9 +36,16 @@ pub async fn vod_get(platform: String, id: String) -> Result<Vod, VodError> {
 }
 
 #[tauri::command]
-pub async fn vod_get_playback_url(platform: String, id: String) -> Result<String, VodError> {
+pub async fn vod_get_playback_url(
+    app: AppHandle,
+    platform: String,
+    id: String,
+) -> Result<String, VodError> {
     match platform.as_str() {
-        "twitch" => twitch::get_playback_url(&id).await,
+        "twitch" => {
+            let session = crate::twitch::web_session::auth_token(&app);
+            twitch::get_playback_url(&id, session.as_deref()).await
+        }
         "kick" => kick::get_playback_url(&id).await,
         other => Err(unsupported(other)),
     }

@@ -210,6 +210,16 @@
       "streamError": "Recording error: {error}",
       "customNotSupported": "Recording is not supported for custom streams.",
       "orphanFound": "Found {count} incomplete recording(s)"
+    },
+    "twitchWeb": {
+      "title": "Ad-free Twitch playback",
+      "description": "Sign in on twitch.tv so the built-in player and VODs use your Turbo and subscriptions: no ads where you've paid for none, and sub-only VODs play.",
+      "signIn": "Sign in on twitch.tv",
+      "signingIn": "Waiting for twitch.tv sign-in…",
+      "turbo": "Turbo active",
+      "error": "Couldn't open the twitch.tv sign-in window.",
+      "sectionTitle": "Playback",
+      "sectionDescription": "Uses your twitch.tv login. This is separate from the Twitch chat connection above."
     }
   },
   "share": {
