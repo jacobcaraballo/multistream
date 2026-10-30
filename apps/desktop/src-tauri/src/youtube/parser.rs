@@ -444,15 +444,10 @@ pub fn is_live_lockup(lockup: &Value) -> bool {
         }
     }
 
-    if str_repr.contains("\"islive\":true")
+    str_repr.contains("\"islive\":true")
         || str_repr.contains("\"islivenow\":true")
         || str_repr.contains("thumbnail_overlay_badge_style_live")
         || str_repr.contains("badge_style_type_live_now")
-    {
-        return true;
-    }
-
-    false
 }
 
 pub fn parse_lockup_view_model(lockup: &Value) -> Option<YouTubeSuggestedStream> {
