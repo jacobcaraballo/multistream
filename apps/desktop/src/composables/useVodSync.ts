@@ -272,6 +272,12 @@ const _useVodSync = () => {
     delete phases[id];
   };
 
+  /** Current media second of a loaded player, or null while it is loading or failed. */
+  const mediaTimeOf = (id: string): number | null => {
+    const video = videos.get(id);
+    return video && players[id]?.status === "ready" ? video.currentTime : null;
+  };
+
   /** Media second a freshly loaded player should start buffering from. */
   const initialMediaTime = (id: string): number => {
     const stream = findStream(id);
@@ -385,6 +391,7 @@ const _useVodSync = () => {
     updatePlayer,
     unregisterPlayer,
     initialMediaTime,
+    mediaTimeOf,
     seek,
     seekBy,
     seekPlayer,

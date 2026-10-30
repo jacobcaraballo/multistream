@@ -13,6 +13,7 @@ const TwitchChat = defineAsyncComponent(() => import("@/components/chat/TwitchCh
 const YoutubeChat = defineAsyncComponent(() => import("@/components/chat/YoutubeChat.vue"));
 const UnifiedChat = defineAsyncComponent(() => import("@/components/chat/UnifiedChat.vue"));
 const TranscriptView = defineAsyncComponent(() => import("@/components/chat/TranscriptView.vue"));
+const VodChatReplay = defineAsyncComponent(() => import("@/components/chat/VodChatReplay.vue"));
 
 const AddDialog = defineAsyncComponent(() => import("@/components/dialogs/AddDialog.vue"));
 const ShareDialog = defineAsyncComponent(() => import("@/components/dialogs/ShareDialog.vue"));
@@ -23,6 +24,7 @@ const SettingsDialog = defineAsyncComponent(
 );
 
 import { UNIFIED_CHAT_ID } from "@/composables/useUnifiedChat";
+import { VOD_CHAT_ID } from "@/composables/useVodChatReplay";
 import { isVodPlatform, type VodPlatform } from "@/lib/vod";
 import { KickIcon, TwitchIcon, YoutubeIcon, CustomIcon } from "@/components/icons";
 
@@ -103,12 +105,14 @@ const appVersion = import.meta.env.VITE_APP_VERSION;
 const sidebarMode = ref<"chat" | "transcript">("chat");
 
 const hasLoadedUnifiedChat = ref(false);
+const hasLoadedVodChat = ref(false);
 const hasLoadedTranscript = ref(false);
 
 const { streams } = useStreams();
 const chatableStreams = computed(() =>
   streams.value.filter((s) => s.platform !== "custom" && !s.vod)
 );
+const hasVods = computed(() => streams.value.some((s) => s.vod));
 const { unifiedChatState } = useUnifiedChatState();
 const { selectedChat, sidebarOpen } = usePreferences();
 
@@ -138,6 +142,7 @@ watch(
   selectedChat,
   (v) => {
     if (v === UNIFIED_CHAT_ID) hasLoadedUnifiedChat.value = true;
+    if (v === VOD_CHAT_ID) hasLoadedVodChat.value = true;
   },
   { immediate: true }
 );
@@ -159,12 +164,15 @@ const handleOpenChangelog = () => {
 watch(
   chatableStreams,
   (available) => {
+    const current = selectedChat.value;
+    if (current === VOD_CHAT_ID && hasVods.value) return;
+
     if (available.length === 0) {
-      if (selectedChat.value !== UNIFIED_CHAT_ID) selectedChat.value = "";
+      if (hasVods.value) selectedChat.value = VOD_CHAT_ID;
+      else if (current !== UNIFIED_CHAT_ID) selectedChat.value = "";
       return;
     }
 
-    const current = selectedChat.value;
     const firstAvailable = available[0];
     if (available.length === 1 && current === UNIFIED_CHAT_ID && firstAvailable) {
       selectedChat.value = `${firstAvailable.platform}:${firstAvailable.channel}`;
@@ -186,6 +194,16 @@ watch(
   },
   { immediate: true }
 );
+
+// keep the VOD chat selection valid as VODs come and go
+watch(hasVods, (has) => {
+  if (has && !selectedChat.value) {
+    selectedChat.value = VOD_CHAT_ID;
+  } else if (!has && selectedChat.value === VOD_CHAT_ID) {
+    const first = chatableStreams.value[0];
+    selectedChat.value = first ? `${first.platform}:${first.channel}` : "";
+  }
+});
 
 function isChatSelected(stream: Stream): boolean {
   if (!selectedChat.value) return false;
@@ -355,6 +373,10 @@ onUnmounted(() => {
                   </div>
                   <span class="truncate">{{ $t("chat.unified.selectorLabel") }}</span>
                 </div>
+                <div v-else-if="selectedChat === VOD_CHAT_ID" class="flex items-center gap-2">
+                  <Clapperboard class="w-4 h-4 shrink-0 text-gray-300" aria-hidden="true" />
+                  <span class="truncate">{{ $t("vods.chat.selectorLabel") }}</span>
+                </div>
                 <div v-else-if="selectedStreamObj" class="flex items-center gap-2">
                   <component
                     :is="platformIcons[selectedStreamObj.platform]"
@@ -399,6 +421,17 @@ onUnmounted(() => {
                     <span class="truncate">{{ $t("chat.unified.selectorLabel") }}</span>
                   </div>
                 </SelectItem>
+                <SelectItem
+                  v-if="hasVods"
+                  :value="VOD_CHAT_ID"
+                  data-testid="vod-chat-option"
+                  class="text-white focus:bg-[#2a2d33] focus:text-white cursor-pointer border-t border-[#2a2d33] mt-1 pt-1"
+                >
+                  <div class="flex items-center gap-2">
+                    <Clapperboard class="w-4 h-4 shrink-0 text-gray-300" aria-hidden="true" />
+                    <span class="truncate">{{ $t("vods.chat.selectorLabel") }}</span>
+                  </div>
+                </SelectItem>
               </SelectGroup>
             </SelectContent>
           </Select>
@@ -427,6 +460,11 @@ onUnmounted(() => {
             :channel="stream.channel"
           />
           <UnifiedChat v-if="hasLoadedUnifiedChat" v-show="selectedChat === UNIFIED_CHAT_ID" />
+          <VodChatReplay
+            v-if="hasLoadedVodChat"
+            v-show="selectedChat === VOD_CHAT_ID"
+            :active="selectedChat === VOD_CHAT_ID && sidebarMode === 'chat'"
+          />
           <div
             v-if="streams.length === 0"
             class="absolute inset-0 flex items-center justify-center text-muted-foreground bg-[#0f1115]"

@@ -604,6 +604,13 @@
     "speed": {
       "title": "Oynatma hızı",
       "normal": "Normal"
+    },
+    "chat": {
+      "selectorLabel": "VOD sohbeti",
+      "loading": "Sohbet tekrarı yükleniyor…",
+      "empty": "VOD'lar oynatılırken sohbet tekrarı burada görünür.",
+      "filter": "Sohbeti göster",
+      "resume": "Şu ana dön"
     }
   }
 }

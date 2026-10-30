@@ -38,7 +38,7 @@ interface ConnectionStateEvent {
   state: ConnectionState;
 }
 
-const CHANNEL_PALETTE = [
+export const CHANNEL_PALETTE = [
   "#FF0055", // Neon Pink
   "#00FFCC", // Cyan
   "#FF9900", // Bright Orange

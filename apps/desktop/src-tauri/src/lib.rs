@@ -49,6 +49,7 @@ mod network;
 use network::check_network_connectivity;
 
 mod vod;
+use vod::chat::vod_chat;
 use vod::commands::{vod_get, vod_get_playback_url, vod_list};
 
 // fixed port
@@ -196,6 +197,7 @@ pub fn run() {
             vod_list,
             vod_get,
             vod_get_playback_url,
+            vod_chat,
             twitch_web_session_state,
             twitch_web_login,
             twitch_web_logout,

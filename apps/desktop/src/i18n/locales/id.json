@@ -604,6 +604,13 @@
     "speed": {
       "title": "Kecepatan putar",
       "normal": "Normal"
+    },
+    "chat": {
+      "selectorLabel": "Chat VOD",
+      "loading": "Memuat putar ulang chat…",
+      "empty": "Putar ulang chat muncul di sini saat VOD diputar.",
+      "filter": "Tampilkan chat dari",
+      "resume": "Kembali ke saat ini"
     }
   }
 }

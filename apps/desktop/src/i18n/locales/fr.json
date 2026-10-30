@@ -604,6 +604,13 @@
     "speed": {
       "title": "Vitesse de lecture",
       "normal": "Normale"
+    },
+    "chat": {
+      "selectorLabel": "Chat des VODs",
+      "loading": "Chargement de la rediffusion du chat…",
+      "empty": "La rediffusion du chat s'affiche ici pendant la lecture des VODs.",
+      "filter": "Afficher le chat de",
+      "resume": "Revenir au moment actuel"
     }
   }
 }

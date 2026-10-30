@@ -604,6 +604,13 @@
     "speed": {
       "title": "Playback speed",
       "normal": "Normal"
+    },
+    "chat": {
+      "selectorLabel": "VOD chat",
+      "loading": "Loading chat replay…",
+      "empty": "Chat replay appears here as the VODs play.",
+      "filter": "Show chat from",
+      "resume": "Back to now"
     }
   }
 }

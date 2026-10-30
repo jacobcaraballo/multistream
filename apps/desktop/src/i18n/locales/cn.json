@@ -604,6 +604,13 @@
     "speed": {
       "title": "播放速度",
       "normal": "正常"
+    },
+    "chat": {
+      "selectorLabel": "录像聊天",
+      "loading": "正在加载聊天回放…",
+      "empty": "录像播放时，聊天回放会显示在这里。",
+      "filter": "显示以下频道的聊天",
+      "resume": "回到当前"
     }
   }
 }

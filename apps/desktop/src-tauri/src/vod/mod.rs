@@ -1,3 +1,4 @@
+pub mod chat;
 pub mod commands;
 pub mod error;
 pub mod kick;

@@ -604,6 +604,13 @@
     "speed": {
       "title": "Velocidad de reproducción",
       "normal": "Normal"
+    },
+    "chat": {
+      "selectorLabel": "Chat de los VODs",
+      "loading": "Cargando la repetición del chat…",
+      "empty": "La repetición del chat aparece aquí mientras se reproducen los VODs.",
+      "filter": "Mostrar chat de",
+      "resume": "Volver al momento actual"
     }
   }
 }
