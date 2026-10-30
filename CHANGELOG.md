@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.7] - 2026-10-30
+
+### Features
+
+- **twitch**: Use the twitch.tv session for ad-free playback ([b2ab625](https://github.com/jacobcaraballo/multistream/commit/b2ab62575442a6ffd390a8b3f0d80721753b41e9))
+
 ## [0.19.6] - 2026-10-30
 
 ### Features
