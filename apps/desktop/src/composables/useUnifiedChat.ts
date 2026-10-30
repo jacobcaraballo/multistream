@@ -96,11 +96,13 @@ const _useUnifiedChat = () => {
   }
 
   const twitchChannels = computed(() =>
-    streams.value.filter((s) => s.platform === "twitch").map((s) => s.channel.toLowerCase())
+    streams.value
+      .filter((s) => s.platform === "twitch" && !s.vod)
+      .map((s) => s.channel.toLowerCase())
   );
 
   const kickChannels = computed(() =>
-    streams.value.filter((s) => s.platform === "kick").map((s) => s.channel.toLowerCase())
+    streams.value.filter((s) => s.platform === "kick" && !s.vod).map((s) => s.channel.toLowerCase())
   );
 
   let disposed = false;

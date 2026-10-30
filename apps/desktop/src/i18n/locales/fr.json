@@ -248,7 +248,8 @@
       "focus": "Centrer le stream",
       "unfocus": "Quitter le centrage",
       "copyUrl": "Copier l'URL du stream",
-      "reload": "Recharger le stream"
+      "reload": "Recharger le stream",
+      "vods": "Parcourir les VODs"
     }
   },
   "empty": {
@@ -536,6 +537,57 @@
   "preferences": {
     "immersive": {
       "toastEnabled": "Mode immersif activé — survolez les bords de l'écran ou appuyez sur Échap pour quitter (F11 pour Plein écran)"
+    }
+  },
+  "vods": {
+    "tooltip": "Diffusions passées (VODs)",
+    "title": "Diffusions passées",
+    "description": "Parcourez les VODs d'une chaîne et regardez-en plusieurs en synchronisation.",
+    "channelPlaceholder": "Nom de la chaîne ou lien du VOD",
+    "search": "Afficher les VODs",
+    "hint": "Recherchez une chaîne Twitch ou Kick, ou collez un lien de VOD. Les VODs qui se chevauchent dans le temps sont lus ensemble sur une chronologie commune.",
+    "empty": "Aucune diffusion passée trouvée pour cette chaîne.",
+    "loadMore": "Charger plus",
+    "added": "Ajouté",
+    "recording": "En cours",
+    "badge": "VOD",
+    "views": "{count} vues",
+    "overlaps": "Chevauche {name}",
+    "seek": "Position",
+    "errors": {
+      "restricted": "Ce VOD est réservé aux abonnés ou restreint.",
+      "notFound": "VOD ou chaîne introuvable.",
+      "generic": "Impossible de charger les VODs. Réessayez.",
+      "playback": "Impossible de lire ce VOD.",
+      "unsupported": "La lecture des VODs n'est pas prise en charge dans cette WebView."
+    },
+    "player": {
+      "startsIn": "Commence dans {time}",
+      "ended": "Terminé il y a {time}",
+      "waiting": "Rattrapage du direct…",
+      "jumpHere": "Aller à ce VOD",
+      "jumpToLatest": "Aller au plus récent",
+      "wallClock": "Heure de diffusion d'origine"
+    },
+    "sync": {
+      "label": "Chronologie des VODs",
+      "toggle": "Synchro",
+      "off": "Synchronisation désactivée : chaque VOD est lu indépendamment.",
+      "noOverlap": "Ces VODs ne se chevauchent pas dans le temps.",
+      "overlap": "Chevauchement : {duration}",
+      "buffering": "Mise en mémoire tampon…",
+      "back10": "Reculer de 10 secondes",
+      "forward10": "Avancer de 10 secondes",
+      "showLanes": "Afficher les chronologies",
+      "hideLanes": "Masquer les chronologies",
+      "offsetDelay": "Retarder ce VOD de 0,5 s",
+      "offsetAdvance": "Avancer ce VOD de 0,5 s",
+      "resetOffset": "Réinitialiser le décalage",
+      "activeCount": "{active} VODs sur {total} à cet instant"
+    },
+    "toasts": {
+      "added": "VOD de {name} ajouté",
+      "alreadyAdded": "Ce VOD est déjà dans la grille"
     }
   }
 }

@@ -248,7 +248,8 @@
       "focus": "Stream fokussieren",
       "unfocus": "Fokus aufheben",
       "copyUrl": "Stream-URL kopieren",
-      "reload": "Stream neu laden"
+      "reload": "Stream neu laden",
+      "vods": "VODs durchsuchen"
     }
   },
   "empty": {
@@ -536,6 +537,57 @@
   "preferences": {
     "immersive": {
       "toastEnabled": "Immersiver Modus aktiviert — Bildschirmränder berühren oder Esc zum Beenden drücken (F11 für Vollbild)"
+    }
+  },
+  "vods": {
+    "tooltip": "Vergangene Übertragungen (VODs)",
+    "title": "Vergangene Übertragungen",
+    "description": "Durchsuche die VODs eines Kanals und schaue mehrere synchron.",
+    "channelPlaceholder": "Kanalname oder VOD-Link",
+    "search": "VODs anzeigen",
+    "hint": "Suche einen Twitch- oder Kick-Kanal oder füge einen VOD-Link ein. Zeitlich überlappende VODs laufen gemeinsam auf einer Zeitleiste.",
+    "empty": "Keine vergangenen Übertragungen für diesen Kanal gefunden.",
+    "loadMore": "Mehr laden",
+    "added": "Hinzugefügt",
+    "recording": "Aufnahme",
+    "badge": "VOD",
+    "views": "{count} Aufrufe",
+    "overlaps": "Überlappt mit {name}",
+    "seek": "Position",
+    "errors": {
+      "restricted": "Dieses VOD ist nur für Abonnenten oder eingeschränkt.",
+      "notFound": "VOD oder Kanal nicht gefunden.",
+      "generic": "VODs konnten nicht geladen werden. Bitte erneut versuchen.",
+      "playback": "Dieses VOD konnte nicht abgespielt werden.",
+      "unsupported": "VOD-Wiedergabe wird in dieser WebView nicht unterstützt."
+    },
+    "player": {
+      "startsIn": "Beginnt in {time}",
+      "ended": "Vor {time} beendet",
+      "waiting": "Holt die Live-Übertragung ein…",
+      "jumpHere": "Zu diesem VOD springen",
+      "jumpToLatest": "Zum Neuesten springen",
+      "wallClock": "Ursprüngliche Sendezeit"
+    },
+    "sync": {
+      "label": "VOD-Zeitleiste",
+      "toggle": "Sync",
+      "off": "Synchronisierung aus: Jedes VOD läuft unabhängig.",
+      "noOverlap": "Diese VODs überschneiden sich zeitlich nicht.",
+      "overlap": "Überschneidung: {duration}",
+      "buffering": "Puffert…",
+      "back10": "10 Sekunden zurück",
+      "forward10": "10 Sekunden vor",
+      "showLanes": "Zeitleisten anzeigen",
+      "hideLanes": "Zeitleisten ausblenden",
+      "offsetDelay": "Dieses VOD um 0,5 s verzögern",
+      "offsetAdvance": "Dieses VOD um 0,5 s vorziehen",
+      "resetOffset": "Versatz zurücksetzen",
+      "activeCount": "{active} von {total} VODs zu diesem Zeitpunkt"
+    },
+    "toasts": {
+      "added": "VOD von {name} hinzugefügt",
+      "alreadyAdded": "Dieses VOD ist bereits im Raster"
     }
   }
 }

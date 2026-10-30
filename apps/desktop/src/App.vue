@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted } from "vue";
+import { ref, computed, watch, onMounted, onUnmounted, defineAsyncComponent } from "vue";
 import { Menu, X, WifiOff } from "@lucide/vue";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
@@ -27,6 +27,8 @@ import { useI18n } from "vue-i18n";
 import { parseUrlOptions } from "./lib/parseUrlOptions";
 import { resolveStream } from "./lib/streamResolver";
 import { APP_LINKS } from "./config/links";
+
+const VodSyncBar = defineAsyncComponent(() => import("./components/main/VodSyncBar.vue"));
 
 const sidebarRef = ref<InstanceType<typeof SidebarPanel> | null>(null);
 const showOnboarding = ref(false);
@@ -70,6 +72,7 @@ watch(
 );
 
 const { streams, addStream, clearStreams } = useStreams();
+const hasVods = computed(() => streams.value.some((s) => s.vod));
 const {
   sidebarOpen,
   setSelectedChat,
@@ -384,11 +387,16 @@ onUnmounted(() => {
       </div>
 
       <!-- main -->
-      <main class="flex-1 overflow-y-auto bg-[#1f2227]">
-        <!-- stream grid -->
-        <StreamGrid v-if="streams.length > 0" />
+      <main class="flex-1 flex flex-col overflow-hidden bg-[#1f2227]">
+        <div class="flex-1 min-h-0 overflow-y-auto">
+          <!-- stream grid -->
+          <StreamGrid v-if="streams.length > 0" />
 
-        <EmptyState v-else @add="sidebarRef?.openAddDialog()" @tour="showOnboarding = true" />
+          <EmptyState v-else @add="sidebarRef?.openAddDialog()" @tour="showOnboarding = true" />
+        </div>
+
+        <!-- shared timeline for past broadcasts -->
+        <VodSyncBar v-if="hasVods" />
       </main>
     </div>
 

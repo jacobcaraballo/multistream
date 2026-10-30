@@ -17,11 +17,13 @@ const TranscriptView = defineAsyncComponent(() => import("@/components/chat/Tran
 const AddDialog = defineAsyncComponent(() => import("@/components/dialogs/AddDialog.vue"));
 const ShareDialog = defineAsyncComponent(() => import("@/components/dialogs/ShareDialog.vue"));
 const ImportDialog = defineAsyncComponent(() => import("@/components/dialogs/ImportDialog.vue"));
+const VodDialog = defineAsyncComponent(() => import("@/components/dialogs/VodDialog.vue"));
 const SettingsDialog = defineAsyncComponent(
   () => import("@/components/dialogs/SettingsDialog.vue")
 );
 
 import { UNIFIED_CHAT_ID } from "@/composables/useUnifiedChat";
+import { isVodPlatform, type VodPlatform } from "@/lib/vod";
 import { KickIcon, TwitchIcon, YoutubeIcon, CustomIcon } from "@/components/icons";
 
 const platformIcons: Record<string, any> = {
@@ -40,6 +42,7 @@ import {
   Loader2,
   Maximize2,
   Minimize2,
+  Clapperboard,
 } from "@lucide/vue";
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import {
@@ -55,6 +58,9 @@ const addDialogOpen = ref(false);
 const shareDialogOpen = ref(false);
 const importDialogOpen = ref(false);
 const settingsDialogOpen = ref(false);
+const vodDialogOpen = ref(false);
+const hasOpenedVods = ref(false);
+const vodDialogTarget = ref<{ platform: VodPlatform; channel: string } | null>(null);
 
 const hasOpenedAdd = ref(false);
 const hasOpenedShare = ref(false);
@@ -89,6 +95,9 @@ watch(
   },
   { immediate: true }
 );
+watch(vodDialogOpen, (v) => {
+  if (v) hasOpenedVods.value = true;
+});
 
 const appVersion = import.meta.env.VITE_APP_VERSION;
 const sidebarMode = ref<"chat" | "transcript">("chat");
@@ -97,7 +106,9 @@ const hasLoadedUnifiedChat = ref(false);
 const hasLoadedTranscript = ref(false);
 
 const { streams } = useStreams();
-const chatableStreams = computed(() => streams.value.filter((s) => s.platform !== "custom"));
+const chatableStreams = computed(() =>
+  streams.value.filter((s) => s.platform !== "custom" && !s.vod)
+);
 const { unifiedChatState } = useUnifiedChatState();
 const { selectedChat, sidebarOpen } = usePreferences();
 
@@ -188,7 +199,7 @@ const {
 } = useTranscription();
 
 const selectedStreamObj = computed(() =>
-  streams.value.find(
+  chatableStreams.value.find(
     (s) => `${s.platform}:${s.channel}`.toLowerCase() === selectedChat.value.toLowerCase()
   )
 );
@@ -219,6 +230,21 @@ function openAddDialog() {
 
 defineExpose({ openAddDialog });
 
+function openVodDialog(target: { platform: VodPlatform; channel: string } | null = null) {
+  vodDialogTarget.value = target;
+  vodDialogOpen.value = true;
+}
+
+function handleOpenVodsEvent(e: Event) {
+  const detail = (e as CustomEvent<{ platform?: string; channel?: string }>).detail;
+  const platform = detail?.platform;
+  openVodDialog(
+    platform && detail.channel && isVodPlatform(platform)
+      ? { platform, channel: detail.channel }
+      : null
+  );
+}
+
 function handleShortcutEvent(e: Event) {
   const evt = e as CustomEvent;
   if (evt.detail === "add-stream") {
@@ -228,10 +254,12 @@ function handleShortcutEvent(e: Event) {
 
 onMounted(() => {
   window.addEventListener("multistream-show-dialog", handleShortcutEvent);
+  window.addEventListener("multistream-open-vods", handleOpenVodsEvent);
 });
 
 onUnmounted(() => {
   window.removeEventListener("multistream-show-dialog", handleShortcutEvent);
+  window.removeEventListener("multistream-open-vods", handleOpenVodsEvent);
 });
 </script>
 
@@ -381,19 +409,19 @@ onUnmounted(() => {
       <div id="chat-sidebar-bounds" class="relative flex-1 overflow-hidden flex flex-col">
         <div v-show="sidebarMode === 'chat'" class="absolute inset-0">
           <KickChat
-            v-for="stream in streams.filter((s) => s.platform === 'kick')"
+            v-for="stream in chatableStreams.filter((s) => s.platform === 'kick')"
             v-show="isChatSelected(stream)"
             :key="`chat-${stream.id}`"
             :channel="stream.channel"
           />
           <TwitchChat
-            v-for="stream in streams.filter((s) => s.platform === 'twitch')"
+            v-for="stream in chatableStreams.filter((s) => s.platform === 'twitch')"
             v-show="isChatSelected(stream)"
             :key="`chat-${stream.id}`"
             :channel="stream.channel"
           />
           <YoutubeChat
-            v-for="stream in streams.filter((s) => s.platform === 'youtube')"
+            v-for="stream in chatableStreams.filter((s) => s.platform === 'youtube')"
             v-show="isChatSelected(stream)"
             :key="`chat-${stream.id}`"
             :channel="stream.channel"
@@ -428,7 +456,7 @@ onUnmounted(() => {
       <!-- action buttons -->
       <div class="px-4 py-3.5 border-t border-[#1f2227]">
         <TooltipProvider>
-          <div class="grid grid-cols-6 gap-2">
+          <div class="grid grid-cols-7 gap-2">
             <Tooltip :disable-hoverable-content="true">
               <TooltipTrigger as-child>
                 <Button
@@ -445,6 +473,25 @@ onUnmounted(() => {
               </TooltipTrigger>
               <TooltipContent>
                 <p>{{ $t("add.tooltip") }}</p>
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip :disable-hoverable-content="true">
+              <TooltipTrigger as-child>
+                <Button
+                  data-testid="vods-btn"
+                  :aria-label="$t('vods.tooltip')"
+                  class="group aspect-square h-auto w-full p-0 flex items-center justify-center rounded-xl border-[#2a2d33] bg-[#14161a] hover:bg-[#1c1f24] hover:border-[#3a3f4b] transition-all duration-200"
+                  variant="outline"
+                  @click="openVodDialog()"
+                >
+                  <Clapperboard
+                    class="size-4.5 text-white transition-transform duration-300 group-hover:scale-110"
+                  />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{{ $t("vods.tooltip") }}</p>
               </TooltipContent>
             </Tooltip>
 
@@ -570,4 +617,5 @@ onUnmounted(() => {
   <ShareDialog v-if="hasOpenedShare" v-model:open="shareDialogOpen" />
   <ImportDialog v-if="hasOpenedImport" v-model:open="importDialogOpen" />
   <SettingsDialog v-if="hasOpenedSettings" v-model:open="settingsDialogOpen" />
+  <VodDialog v-if="hasOpenedVods" v-model:open="vodDialogOpen" :target="vodDialogTarget" />
 </template>

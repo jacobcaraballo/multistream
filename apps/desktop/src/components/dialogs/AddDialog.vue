@@ -22,6 +22,7 @@ import { PLATFORMS } from "@/config/platforms";
 import { REFRESH_CONFIG } from "@/config/api";
 import { History, Heart, Flame, RotateCw, Loader2 } from "@lucide/vue";
 import { parseStreamUrl } from "@/lib/platformParser";
+import { parseVodUrl, vodErrorKey, type Vod } from "@/lib/vod";
 import { createCustomStreamName } from "@/lib/parseUrlOptions";
 import { toast } from "@/composables/useToast";
 import { invoke } from "@tauri-apps/api/core";
@@ -35,7 +36,7 @@ const emit = defineEmits<{
   (e: "update:open", value: boolean): void;
 }>();
 
-const { addStream } = useStreams();
+const { addStream, addVod } = useStreams();
 const { recents, removeRecent } = useRecents();
 const {
   getStatus,
@@ -219,6 +220,8 @@ const handleChannelBlur = () => {
 };
 
 const detectAndApply = async (value: string) => {
+  // VOD links are resolved on submit; parsing them as channels would yield "videos"
+  if (parseVodUrl(value)) return false;
   const result = parseStreamUrl(value);
   if (!result) return false;
 
@@ -237,6 +240,7 @@ const detectAndApply = async (value: string) => {
 
 const handlePaste = (e: ClipboardEvent) => {
   const pastedText = e.clipboardData?.getData("text") || "";
+  if (parseVodUrl(pastedText)) return;
   const result = parseStreamUrl(pastedText);
   if (result) {
     e.preventDefault();
@@ -300,6 +304,23 @@ const handleAddStream = async () => {
   }
 
   let channel = channelName.value.trim();
+
+  const vodRef = parseVodUrl(channel);
+  if (vodRef) {
+    isResolvingLive.value = true;
+    try {
+      const vod = await invoke<Vod>("vod_get", { platform: vodRef.platform, id: vodRef.id });
+      if (addVod(vod)) {
+        channelName.value = "";
+        emit("update:open", false);
+      }
+    } catch (err) {
+      toast.error(t(vodErrorKey(err)));
+    } finally {
+      isResolvingLive.value = false;
+    }
+    return;
+  }
 
   const parsedResult = parseStreamUrl(channel);
   if (parsedResult) {

@@ -12,6 +12,7 @@ import {
   Link,
   RotateCw,
   WifiOff,
+  Clapperboard,
 } from "@lucide/vue";
 import { ref, onMounted, onUnmounted, computed, watch, nextTick } from "vue";
 import { useFavorites } from "@/composables/useFavorites";
@@ -26,6 +27,7 @@ import { useProfilePicture } from "@/composables/useProfilePicture";
 import { useRecording } from "@/composables/useRecording";
 import { usePreferences } from "@/composables/usePreferences";
 import { useNetworkStatus } from "@/composables/useNetworkStatus";
+import { isVodPlatform } from "@/lib/vod";
 
 const { requestRemoveStream, sessionStartTimes, now } = useStreams();
 const { addFavorite, removeFavorite, favorites } = useFavorites();
@@ -79,6 +81,7 @@ const props = defineProps<{
   displayName?: string;
   handle?: string;
   iframeUrl?: string;
+  isVod?: boolean;
 }>();
 
 const platformConfig = computed(() => {
@@ -206,6 +209,7 @@ const viewerCountDisplay = computed(() => {
 
 const embedDomain = computed(() => {
   if (props.platform === "custom") return "custom_frame";
+  if (props.isVod) return "vod_hls";
   if (props.platform === "twitch" && nativePlayerEnabled.value) return "native";
   try {
     const url = platformConfig.value?.embedUrl;
@@ -536,6 +540,14 @@ const handleScreenshot = () => {
   }
 };
 
+const handleBrowseVods = () => {
+  window.dispatchEvent(
+    new CustomEvent("multistream-open-vods", {
+      detail: { platform: props.platform, channel: props.channel },
+    })
+  );
+};
+
 const handleCopyUrl = async () => {
   if (!props.iframeUrl) return;
   try {
@@ -798,8 +810,22 @@ const handleCopyUrl = async () => {
       >
         <Link :class="isMiniaturized ? 'size-3' : 'size-4'" />
       </button>
+      <!-- browse past broadcasts of this channel -->
+      <button
+        v-if="isVodPlatform(props.platform)"
+        :data-testid="`browse-vods-${channel}`"
+        :aria-label="$t('stream.actions.vods')"
+        :title="$t('stream.actions.vods')"
+        :class="[
+          'pointer-events-auto flex items-center justify-center rounded-lg bg-black/60 backdrop-blur-sm border border-white/10 text-white/80 hover:bg-zinc-700/80 hover:text-white hover:border-white/20 transition-all duration-200 hover:scale-110 cursor-pointer',
+          isMiniaturized ? 'size-5' : 'size-8',
+        ]"
+        @click="handleBrowseVods"
+      >
+        <Clapperboard :class="isMiniaturized ? 'size-3' : 'size-4'" />
+      </button>
       <!-- record button -->
-      <template v-if="isDependenciesInstalled && props.platform !== 'custom'">
+      <template v-if="isDependenciesInstalled && props.platform !== 'custom' && !props.isVod">
         <button
           :data-testid="`record-stream-${props.channel}`"
           :aria-label="
@@ -848,6 +874,7 @@ const handleCopyUrl = async () => {
 
     <!-- watch timer bottom overlay bar - appears on hover -->
     <div
+      v-if="!props.isVod"
       :class="[
         'absolute bottom-3 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-[9px] text-white/70 pointer-events-none opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 z-10 shadow-lg flex items-center gap-1.5',
         isMiniaturized ? 'scale-90 bottom-1' : '',

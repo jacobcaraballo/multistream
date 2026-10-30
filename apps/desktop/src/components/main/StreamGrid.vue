@@ -3,6 +3,7 @@ import KickStream from "@/components/stream/KickStream.vue";
 import TwitchStream from "@/components/stream/TwitchStream.vue";
 import YoutubeStream from "@/components/stream/YoutubeStream.vue";
 import CustomStream from "@/components/stream/CustomStream.vue";
+import VodStream from "@/components/stream/VodStream.vue";
 import TranscriptionOverlay from "./TranscriptionOverlay.vue";
 import { GripVertical } from "@lucide/vue";
 import { useDragAndDrop } from "@/composables/useDragAndDrop";
@@ -74,13 +75,13 @@ watch(
     });
 
     // 3. Garbage Collector: Remove dead streams
-    const activePlatforms = new Set(newStreams.map((s) => s.platform));
+    const activePlatforms = new Set(newStreams.filter((s) => !s.vod).map((s) => s.platform));
 
     domStreams.value = nextStreams.filter((ds) => {
       if (!ds._isDead) return true;
 
-      // Custom streams always bypass the graveyard
-      if (ds.platform === "custom") return false;
+      // Custom streams and VODs (native <video>) always bypass the graveyard
+      if (ds.platform === "custom" || ds.vod) return false;
 
       // Twitch streams bypass the graveyard when Native HLS player is enabled
       if (ds.platform === "twitch" && nativePlayerEnabled.value) return false;
@@ -96,7 +97,7 @@ watch(
 watch(focusedStreamId, async (newId) => {
   if (!newId) return;
   const stream = streams.value.find((s) => s.id === newId);
-  if (stream && stream.platform !== "custom")
+  if (stream && stream.platform !== "custom" && !stream.vod)
     setSelectedChat(`${stream.platform}:${stream.channel}`);
 });
 
@@ -255,8 +256,9 @@ const getStreamClass = (streamId: string) => {
 
       <TranscriptionOverlay v-if="isFocused(stream.id) || streams.length === 1" />
 
+      <VodStream v-if="stream.vod" :channelid="stream.id" :vod="stream.vod" />
       <KickStream
-        v-if="stream.platform === 'kick'"
+        v-else-if="stream.platform === 'kick'"
         :channel="stream.channel"
         :channelid="stream.id"
       />

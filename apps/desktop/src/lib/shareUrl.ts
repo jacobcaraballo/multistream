@@ -49,8 +49,8 @@ export function buildShareUrl({
   const url = `${resolvedBaseUrl}/${websiteLocale}/`;
   const params: string[] = ["action=share"];
 
-  // regular streams (kick, twitch, youtube)
-  const regularStreams = streams.filter((s) => s.platform !== "custom");
+  // regular streams (kick, twitch, youtube); VODs have no share-link format yet
+  const regularStreams = streams.filter((s) => s.platform !== "custom" && !s.vod);
   if (regularStreams.length) {
     const streamsParam = regularStreams.map((s) => formatStreamIdentifier(s, getStatus)).join(",");
     params.push(`streams=${streamsParam}`);

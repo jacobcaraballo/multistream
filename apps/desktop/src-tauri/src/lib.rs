@@ -47,6 +47,9 @@ use recording::RecordingManager;
 mod network;
 use network::check_network_connectivity;
 
+mod vod;
+use vod::commands::{vod_get, vod_get_playback_url, vod_list};
+
 // fixed port
 const LOCALHOST_PORT: u16 = 14831;
 
@@ -180,7 +183,18 @@ pub fn run() {
             youtube_check_channels_status,
             youtube_search_channels,
             check_network_connectivity,
+            vod_list,
+            vod_get,
+            vod_get_playback_url,
         ])
+        .register_asynchronous_uri_scheme_protocol(
+            vod::proxy::SCHEME,
+            |_ctx, request, responder| {
+                tauri::async_runtime::spawn(async move {
+                    responder.respond(vod::proxy::handle(request).await);
+                });
+            },
+        )
         .setup(move |app| {
             network::start_network_monitor(app.handle().clone());
             app.manage(TranscriptionState(std::sync::Mutex::new(None)));

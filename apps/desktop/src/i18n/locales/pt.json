@@ -248,7 +248,8 @@
       "focus": "Focar stream",
       "unfocus": "Desfocar stream",
       "copyUrl": "Copiar URL da transmissão",
-      "reload": "Recarregar stream"
+      "reload": "Recarregar stream",
+      "vods": "Ver VODs"
     }
   },
   "empty": {
@@ -536,6 +537,57 @@
   "preferences": {
     "immersive": {
       "toastEnabled": "Modo imersivo ativado — encoste o mouse nas bordas ou pressione Esc para sair (F11 para Tela Cheia)"
+    }
+  },
+  "vods": {
+    "tooltip": "Transmissões anteriores (VODs)",
+    "title": "Transmissões anteriores",
+    "description": "Veja os VODs de um canal e assista a vários deles em sincronia.",
+    "channelPlaceholder": "Nome do canal ou link do VOD",
+    "search": "Ver VODs",
+    "hint": "Pesquise um canal da Twitch ou Kick, ou cole o link de um VOD. VODs que se sobrepõem no tempo tocam juntos em uma linha do tempo compartilhada.",
+    "empty": "Nenhuma transmissão anterior encontrada para este canal.",
+    "loadMore": "Carregar mais",
+    "added": "Adicionado",
+    "recording": "Gravando",
+    "badge": "VOD",
+    "views": "{count} visualizações",
+    "overlaps": "Coincide com {name}",
+    "seek": "Buscar posição",
+    "errors": {
+      "restricted": "Este VOD é exclusivo para inscritos ou restrito.",
+      "notFound": "VOD ou canal não encontrado.",
+      "generic": "Não foi possível carregar os VODs. Tente novamente.",
+      "playback": "Não foi possível reproduzir este VOD.",
+      "unsupported": "A reprodução de VODs não é suportada neste WebView."
+    },
+    "player": {
+      "startsIn": "Começa em {time}",
+      "ended": "Terminou há {time}",
+      "waiting": "Acompanhando a transmissão ao vivo…",
+      "jumpHere": "Ir para este VOD",
+      "jumpToLatest": "Ir para o mais recente",
+      "wallClock": "Horário original da transmissão"
+    },
+    "sync": {
+      "label": "Linha do tempo dos VODs",
+      "toggle": "Sincronizar",
+      "off": "Sincronização desativada: cada VOD toca de forma independente.",
+      "noOverlap": "Estes VODs não se sobrepõem no tempo.",
+      "overlap": "Sobreposição: {duration}",
+      "buffering": "Carregando…",
+      "back10": "Voltar 10 segundos",
+      "forward10": "Avançar 10 segundos",
+      "showLanes": "Mostrar linhas do tempo",
+      "hideLanes": "Ocultar linhas do tempo",
+      "offsetDelay": "Atrasar este VOD em 0,5s",
+      "offsetAdvance": "Adiantar este VOD em 0,5s",
+      "resetOffset": "Redefinir ajuste",
+      "activeCount": "{active} de {total} VODs neste momento"
+    },
+    "toasts": {
+      "added": "VOD de {name} adicionado",
+      "alreadyAdded": "Este VOD já está na grade"
     }
   }
 }

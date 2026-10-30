@@ -196,6 +196,13 @@ _(See [`multistream-website`](.agents/skills/website/SKILL.md) for full guide)_
     - **Multi-Language Parity:** Network requests enforce `Accept-Language: en-US` and consent cookies. View-model parsing prioritizes structural identifiers (`badgeStyle: "THUMBNAIL_OVERLAY_BADGE_STYLE_LIVE"`, `imageName: "LIVE"`, `isLive: true`), backed by a multilingual fallback dictionary covering all 10 supported locales.
     - **Detailed Architecture Reference:** See [`docs/youtube-live-architecture.md`](docs/youtube-live-architecture.md) for full reverse-engineering notes and test matrices.
 
+- **VOD Playback & Sync (`vod/`, `useVodSync.ts`):**
+  - **Platforms:** Twitch and Kick past broadcasts play in a native `<video>` + Hls.js tile (`VodPlayer.vue`), never an iframe, so they bypass the graveyard and can be seeked precisely. VOD tiles are excluded from chat, share links and recording.
+  - **Twitch CDN CORS Proxy:** Twitch's VOD CDN only allows twitch.tv origins. Variant URLs in the usher master playlist are rewritten to the `msvod://` custom URI scheme (`vod/proxy.rs`, `http://msvod.localhost` on Windows), which relays GETs and adds `Access-Control-Allow-Origin: *`. Only hosts seen in a usher playlist are relayed; it is not an open proxy. Kick's CDN already allows any origin.
+  - **Live (Recording) VODs:** Twitch serves in-progress VODs as `EVENT` playlists without `#EXT-X-ENDLIST`, so Hls.js keeps reloading them. Kick appends `ENDLIST` even while live, so `VodPlayer` strips it while `vod.isRecording` and polls `vod_get` every 60s to learn when the broadcast ends.
+  - **Sync Clock:** One wall-clock timeline drives every tile. Each player's start comes from `EXT-X-PROGRAM-DATE-TIME` (API timestamp fallback; some Twitch VODs have no PDT). The clock holds while any in-range player is seeking/starving, nudges `playbackRate` for small drift and hard-seeks beyond 2s. Per-tile offsets compensate co-streamer delay. Pure timing math lives in `lib/vodSync.ts`.
+  - **WebKit Stall Watchdog:** WKWebView can drop SourceBuffer data that Hls.js still tracks as buffered, leaving the element seeking forever and the shared clock held. `VodPlayer` detects 6s of in-range starvation and calls `hls.recoverMediaError()` (twice), then reloads, then errors out so it stops holding the group.
+
 - **Live Transcription (Whisper.cpp):**
   - **Platform Limitation:** Currently, the transcription feature is strictly Windows-only. Always verify platform conditions (e.g., checking if the OS is Windows) before rendering transcription-related UI components or invoking sidecars.
 

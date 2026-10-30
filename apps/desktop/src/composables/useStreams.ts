@@ -7,6 +7,7 @@ import { useFocusedStream } from "./useFocusedStream";
 import { useMediaCodecs } from "./useMediaCodecs";
 import { useRecording } from "./useRecording";
 import { WATCH_TIME_CONFIG } from "@/config/watchTime";
+import type { Vod } from "@/lib/vod";
 
 export type Platform = "kick" | "twitch" | "youtube" | "custom";
 
@@ -19,7 +20,11 @@ export interface Stream {
   iframeUrl?: string;
   displayName?: string;
   handle?: string;
+  /** Present when this grid item plays a past broadcast instead of the live channel. */
+  vod?: Vod;
 }
+
+const MAX_STREAMS = 12;
 
 const isMatchingStream = (
   stream: Stream,
@@ -27,7 +32,7 @@ const isMatchingStream = (
   platform: Platform,
   iframeUrl?: string
 ): boolean => {
-  if (stream.platform !== platform) return false;
+  if (stream.vod || stream.platform !== platform) return false;
   if (platform === "custom" && (iframeUrl || stream.iframeUrl)) {
     return stream.iframeUrl?.toLowerCase() === (iframeUrl || "").toLowerCase();
   }
@@ -157,7 +162,7 @@ const _useStreams = () => {
       return;
     }
 
-    if (streams.value.length >= 12) {
+    if (streams.value.length >= MAX_STREAMS) {
       toast.warning(t("toasts.add.maxStreams"));
       return;
     }
@@ -184,6 +189,59 @@ const _useStreams = () => {
     const streamName = displayName || cleanHandle || channel;
     toast.success(`${streamName} ${t("toasts.add.added")}`);
     addRecent(channel, platform, iframeUrl, displayName, cleanHandle);
+  };
+
+  /**
+   * @brief Add a past broadcast (VOD) to the grid
+   *
+   * VOD tiles are independent from live tiles of the same channel, so a channel
+   * can be watched live and in replay side by side. Duplicate VODs are rejected.
+   *
+   * @param vod The VOD metadata returned by the backend
+   * @return true when the VOD was added
+   */
+  const addVod = (vod: Vod): boolean => {
+    if (streams.value.some((s) => s.vod?.platform === vod.platform && s.vod.id === vod.id)) {
+      toast.warning(t("vods.toasts.alreadyAdded"));
+      return false;
+    }
+
+    if (streams.value.length >= MAX_STREAMS) {
+      toast.warning(t("toasts.add.maxStreams"));
+      return false;
+    }
+
+    checkVideoCodecs();
+
+    streams.value = [
+      ...streams.value,
+      {
+        id: crypto.randomUUID(),
+        channel: vod.channel,
+        platform: vod.platform,
+        displayName: vod.displayName,
+        vod,
+      },
+    ];
+
+    now.value = Date.now();
+    toast.success(t("vods.toasts.added", { name: vod.displayName || vod.channel }));
+    return true;
+  };
+
+  /**
+   * @brief Patch the stored metadata of a VOD tile (e.g. when a recording finishes)
+   */
+  const updateVod = (streamId: string, patch: Partial<Vod>) => {
+    const target = streams.value.find((s) => s.id === streamId);
+    if (!target?.vod) return;
+    const changed = (Object.keys(patch) as (keyof Vod)[]).some(
+      (key) => target.vod?.[key] !== patch[key]
+    );
+    if (!changed) return;
+    streams.value = streams.value.map((s) =>
+      s.id === streamId && s.vod ? { ...s, vod: { ...s.vod, ...patch } } : s
+    );
   };
 
   /**
@@ -293,6 +351,8 @@ const _useStreams = () => {
   return {
     streams,
     addStream,
+    addVod,
+    updateVod,
     removeStream,
     requestRemoveStream,
     isLeaving,

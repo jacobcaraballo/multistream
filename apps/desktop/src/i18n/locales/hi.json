@@ -248,7 +248,8 @@
       "focus": "स्ट्रीम पर फ़ोकस करें",
       "unfocus": "फ़ोकस हटाएं",
       "copyUrl": "स्ट्रीम URL कॉपी करें",
-      "reload": "स्ट्रीम पुनः लोड करें"
+      "reload": "स्ट्रीम पुनः लोड करें",
+      "vods": "VOD देखें"
     }
   },
   "empty": {
@@ -536,6 +537,57 @@
   "preferences": {
     "immersive": {
       "toastEnabled": "इमर्सिव मोड सक्षम — स्क्रीन के किनारों पर होवर करें या बाहर निकलने के लिए Esc दबाएं (फुलस्क्रीन के लिए F11)"
+    }
+  },
+  "vods": {
+    "tooltip": "पिछले प्रसारण (VOD)",
+    "title": "पिछले प्रसारण",
+    "description": "किसी चैनल के VOD देखें और कई VOD एक साथ सिंक में चलाएँ।",
+    "channelPlaceholder": "चैनल का नाम या VOD लिंक",
+    "search": "VOD दिखाएँ",
+    "hint": "Twitch या Kick चैनल खोजें, या VOD लिंक पेस्ट करें। समय में ओवरलैप होने वाले VOD एक साझा टाइमलाइन पर साथ चलते हैं।",
+    "empty": "इस चैनल के कोई पिछले प्रसारण नहीं मिले।",
+    "loadMore": "और लोड करें",
+    "added": "जोड़ा गया",
+    "recording": "रिकॉर्डिंग",
+    "badge": "VOD",
+    "views": "{count} व्यूज़",
+    "overlaps": "{name} के साथ ओवरलैप",
+    "seek": "स्थान बदलें",
+    "errors": {
+      "restricted": "यह VOD केवल सब्सक्राइबर्स के लिए है या प्रतिबंधित है।",
+      "notFound": "VOD या चैनल नहीं मिला।",
+      "generic": "VOD लोड नहीं हो सके। फिर से कोशिश करें।",
+      "playback": "यह VOD चलाया नहीं जा सका।",
+      "unsupported": "इस WebView में VOD प्लेबैक समर्थित नहीं है।"
+    },
+    "player": {
+      "startsIn": "{time} में शुरू होगा",
+      "ended": "{time} पहले समाप्त हुआ",
+      "waiting": "लाइव प्रसारण के साथ तालमेल बिठाया जा रहा है…",
+      "jumpHere": "इस VOD पर जाएँ",
+      "jumpToLatest": "नवीनतम पर जाएँ",
+      "wallClock": "मूल प्रसारण समय"
+    },
+    "sync": {
+      "label": "VOD टाइमलाइन",
+      "toggle": "सिंक",
+      "off": "सिंक बंद है: हर VOD अलग से चलता है।",
+      "noOverlap": "ये VOD समय में ओवरलैप नहीं होते।",
+      "overlap": "ओवरलैप: {duration}",
+      "buffering": "बफ़रिंग…",
+      "back10": "10 सेकंड पीछे",
+      "forward10": "10 सेकंड आगे",
+      "showLanes": "टाइमलाइन दिखाएँ",
+      "hideLanes": "टाइमलाइन छिपाएँ",
+      "offsetDelay": "इस VOD को 0.5 सेकंड पीछे करें",
+      "offsetAdvance": "इस VOD को 0.5 सेकंड आगे करें",
+      "resetOffset": "ऑफ़सेट रीसेट करें",
+      "activeCount": "इस समय {total} में से {active} VOD"
+    },
+    "toasts": {
+      "added": "{name} का VOD जोड़ा गया",
+      "alreadyAdded": "यह VOD पहले से ग्रिड में है"
     }
   }
 }

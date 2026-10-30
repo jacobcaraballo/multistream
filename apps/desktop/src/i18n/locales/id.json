@@ -248,7 +248,8 @@
       "focus": "Fokuskan streaming",
       "unfocus": "Batal fokuskan",
       "copyUrl": "Salin URL siaran",
-      "reload": "Muat ulang siaran"
+      "reload": "Muat ulang siaran",
+      "vods": "Jelajahi VOD"
     }
   },
   "empty": {
@@ -536,6 +537,57 @@
   "preferences": {
     "immersive": {
       "toastEnabled": "Mode imersif diaktifkan — arahkan kursor ke tepi layar atau tekan Esc untuk keluar (F11 untuk Layar Penuh)"
+    }
+  },
+  "vods": {
+    "tooltip": "Siaran sebelumnya (VOD)",
+    "title": "Siaran sebelumnya",
+    "description": "Jelajahi VOD sebuah channel dan tonton beberapa sekaligus secara sinkron.",
+    "channelPlaceholder": "Nama channel atau tautan VOD",
+    "search": "Tampilkan VOD",
+    "hint": "Cari channel Twitch atau Kick, atau tempel tautan VOD. VOD yang waktunya tumpang tindih diputar bersama dalam satu linimasa.",
+    "empty": "Tidak ada siaran sebelumnya untuk channel ini.",
+    "loadMore": "Muat lebih banyak",
+    "added": "Ditambahkan",
+    "recording": "Merekam",
+    "badge": "VOD",
+    "views": "{count} tayangan",
+    "overlaps": "Bersamaan dengan {name}",
+    "seek": "Geser posisi",
+    "errors": {
+      "restricted": "VOD ini khusus pelanggan atau dibatasi.",
+      "notFound": "VOD atau channel tidak ditemukan.",
+      "generic": "Gagal memuat VOD. Coba lagi.",
+      "playback": "VOD ini tidak dapat diputar.",
+      "unsupported": "Pemutaran VOD tidak didukung di WebView ini."
+    },
+    "player": {
+      "startsIn": "Mulai dalam {time}",
+      "ended": "Berakhir {time} yang lalu",
+      "waiting": "Mengejar siaran langsung…",
+      "jumpHere": "Lompat ke VOD ini",
+      "jumpToLatest": "Lompat ke terbaru",
+      "wallClock": "Waktu siaran asli"
+    },
+    "sync": {
+      "label": "Linimasa VOD",
+      "toggle": "Sinkron",
+      "off": "Sinkronisasi mati: setiap VOD diputar sendiri.",
+      "noOverlap": "VOD ini tidak tumpang tindih secara waktu.",
+      "overlap": "Tumpang tindih: {duration}",
+      "buffering": "Memuat…",
+      "back10": "Mundur 10 detik",
+      "forward10": "Maju 10 detik",
+      "showLanes": "Tampilkan linimasa",
+      "hideLanes": "Sembunyikan linimasa",
+      "offsetDelay": "Tunda VOD ini 0,5 dtk",
+      "offsetAdvance": "Majukan VOD ini 0,5 dtk",
+      "resetOffset": "Atur ulang offset",
+      "activeCount": "{active} dari {total} VOD pada saat ini"
+    },
+    "toasts": {
+      "added": "VOD {name} ditambahkan",
+      "alreadyAdded": "VOD ini sudah ada di grid"
     }
   }
 }

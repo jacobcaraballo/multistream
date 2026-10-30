@@ -8,8 +8,8 @@ const _useUnifiedChatState = () => {
   const { authenticated } = useTwitchAuth();
 
   const unifiedChatState = computed(() => {
-    const twitchStreams = streams.value.filter((s) => s.platform === "twitch");
-    const kickStreams = streams.value.filter((s) => s.platform === "kick");
+    const twitchStreams = streams.value.filter((s) => s.platform === "twitch" && !s.vod);
+    const kickStreams = streams.value.filter((s) => s.platform === "kick" && !s.vod);
 
     const twitchCount = twitchStreams.length;
     const kickCount = kickStreams.length;

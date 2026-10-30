@@ -248,7 +248,8 @@
       "focus": "聚焦直播",
       "unfocus": "取消聚焦",
       "copyUrl": "复制直播URL",
-      "reload": "重新加载直播"
+      "reload": "重新加载直播",
+      "vods": "浏览录像"
     }
   },
   "empty": {
@@ -536,6 +537,57 @@
   "preferences": {
     "immersive": {
       "toastEnabled": "沉浸模式已启用 — 将鼠标悬停在屏幕边缘或按 Esc 退出（按 F11 进入全屏）"
+    }
+  },
+  "vods": {
+    "tooltip": "往期直播（录像）",
+    "title": "往期直播",
+    "description": "浏览频道的录像，并同步观看多个录像。",
+    "channelPlaceholder": "频道名称或录像链接",
+    "search": "查看录像",
+    "hint": "搜索 Twitch 或 Kick 频道，或粘贴录像链接。时间上重叠的录像会在同一时间轴上一起播放。",
+    "empty": "未找到该频道的往期直播。",
+    "loadMore": "加载更多",
+    "added": "已添加",
+    "recording": "录制中",
+    "badge": "录像",
+    "views": "{count} 次观看",
+    "overlaps": "与 {name} 重叠",
+    "seek": "跳转",
+    "errors": {
+      "restricted": "此录像仅限订阅者观看或受到限制。",
+      "notFound": "未找到录像或频道。",
+      "generic": "无法加载录像，请重试。",
+      "playback": "无法播放此录像。",
+      "unsupported": "此 WebView 不支持录像播放。"
+    },
+    "player": {
+      "startsIn": "{time} 后开始",
+      "ended": "已于 {time} 前结束",
+      "waiting": "正在追赶直播进度…",
+      "jumpHere": "跳转到此录像",
+      "jumpToLatest": "跳到最新",
+      "wallClock": "原始直播时间"
+    },
+    "sync": {
+      "label": "录像时间轴",
+      "toggle": "同步",
+      "off": "同步已关闭：每个录像独立播放。",
+      "noOverlap": "这些录像在时间上没有重叠。",
+      "overlap": "重叠：{duration}",
+      "buffering": "缓冲中…",
+      "back10": "后退 10 秒",
+      "forward10": "前进 10 秒",
+      "showLanes": "显示时间轴",
+      "hideLanes": "隐藏时间轴",
+      "offsetDelay": "将此录像延后 0.5 秒",
+      "offsetAdvance": "将此录像提前 0.5 秒",
+      "resetOffset": "重置偏移",
+      "activeCount": "此刻 {total} 个录像中有 {active} 个"
+    },
+    "toasts": {
+      "added": "已添加 {name} 的录像",
+      "alreadyAdded": "此录像已在网格中"
     }
   }
 }

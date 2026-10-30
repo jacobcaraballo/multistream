@@ -2,6 +2,7 @@ import { effectScope, EffectScope } from "vue";
 import { describe, it, expect, beforeEach, beforeAll, afterAll, afterEach, vi } from "vitest";
 import { useStreams } from "../useStreams";
 import { toast } from "@/composables/useToast";
+import type { Vod } from "@/lib/vod";
 
 vi.mock("vue-i18n", () => ({
   useI18n: () => ({
@@ -426,5 +427,133 @@ describe("useStreams composable unit tests", () => {
       // Verify watchHistory has no entry for twitch:gaules (not accumulated)
       expect(watchHistory.value["twitch:gaules"]).toBeUndefined();
     });
+  });
+});
+
+const vod = (overrides: Partial<Vod> = {}): Vod => ({
+  id: "2915065087",
+  platform: "twitch",
+  channel: "ibai",
+  displayName: "Ibai",
+  title: "Worlds",
+  startedAt: 1_793_388_336_000,
+  durationSeconds: 5563,
+  isRecording: true,
+  ...overrides,
+});
+
+describe("useStreams VOD tiles", () => {
+  let scope: EffectScope;
+  let sut: ReturnType<typeof useStreams>;
+
+  afterEach(() => {
+    scope?.stop();
+  });
+
+  beforeEach(() => {
+    localStorage.clear();
+    vi.clearAllMocks();
+    scope = effectScope();
+    sut = scope.run(() => useStreams())!;
+    sut.clearStreams();
+  });
+
+  it("should add a VOD tile with its metadata", () => {
+    // Arrange
+    const { addVod, streams } = sut;
+
+    // Act
+    const added = addVod(vod());
+
+    // Assert
+    expect(added).toBe(true);
+    expect(streams.value).toHaveLength(1);
+    expect(streams.value[0]?.channel).toBe("ibai");
+    expect(streams.value[0]?.platform).toBe("twitch");
+    expect(streams.value[0]?.vod?.id).toBe("2915065087");
+    expect(toast.success).toHaveBeenCalledWith("vods.toasts.added");
+  });
+
+  it("should reject the same VOD twice", () => {
+    // Arrange
+    const { addVod, streams } = sut;
+    addVod(vod());
+
+    // Act
+    const added = addVod(vod());
+
+    // Assert
+    expect(added).toBe(false);
+    expect(streams.value).toHaveLength(1);
+    expect(toast.warning).toHaveBeenCalledWith("vods.toasts.alreadyAdded");
+  });
+
+  it("should let a channel be live and in replay at the same time", () => {
+    // Arrange
+    const { addVod, addStream, streams } = sut;
+    addVod(vod());
+
+    // Act
+    addStream("ibai", "twitch");
+
+    // Assert
+    expect(streams.value).toHaveLength(2);
+    expect(streams.value.filter((s) => s.vod)).toHaveLength(1);
+    expect(toast.warning).not.toHaveBeenCalled();
+  });
+
+  it("should still reject a second live tile when a VOD of that channel exists", () => {
+    // Arrange
+    const { addVod, addStream, streams } = sut;
+    addVod(vod());
+    addStream("ibai", "twitch");
+
+    // Act
+    addStream("ibai", "twitch");
+
+    // Assert
+    expect(streams.value).toHaveLength(2);
+    expect(toast.warning).toHaveBeenCalledWith("toasts.add.alreadyAdded");
+  });
+
+  it("should respect the 12 tile limit for VODs", () => {
+    // Arrange
+    const { addVod, streams } = sut;
+    for (let i = 0; i < 12; i++) addVod(vod({ id: String(i) }));
+
+    // Act
+    const added = addVod(vod({ id: "13" }));
+
+    // Assert
+    expect(added).toBe(false);
+    expect(streams.value).toHaveLength(12);
+    expect(toast.warning).toHaveBeenCalledWith("toasts.add.maxStreams");
+  });
+
+  it("should patch VOD metadata when a recording finishes", () => {
+    // Arrange
+    const { addVod, updateVod, streams } = sut;
+    addVod(vod());
+    const id = streams.value[0]!.id;
+
+    // Act
+    updateVod(id, { isRecording: false, durationSeconds: 9000 });
+
+    // Assert
+    expect(streams.value[0]?.vod?.isRecording).toBe(false);
+    expect(streams.value[0]?.vod?.durationSeconds).toBe(9000);
+  });
+
+  it("should not rewrite storage when a VOD patch changes nothing", () => {
+    // Arrange
+    const { addVod, updateVod, streams } = sut;
+    addVod(vod());
+    const before = streams.value;
+
+    // Act
+    updateVod(before[0]!.id, { isRecording: true });
+
+    // Assert
+    expect(streams.value).toBe(before);
   });
 });

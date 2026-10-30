@@ -248,7 +248,8 @@
       "focus": "Yayına odaklan",
       "unfocus": "Odaklanmayı kaldır",
       "copyUrl": "Yayın URL'sini kopyala",
-      "reload": "Yayını yeniden yükle"
+      "reload": "Yayını yeniden yükle",
+      "vods": "VOD'lara göz at"
     }
   },
   "empty": {
@@ -536,6 +537,57 @@
   "preferences": {
     "immersive": {
       "toastEnabled": "Sürükleyici mod etkinleştirildi — kenarlara gelin veya çıkmak için Esc tuşuna basın (Tam ekran için F11)"
+    }
+  },
+  "vods": {
+    "tooltip": "Geçmiş yayınlar (VOD'lar)",
+    "title": "Geçmiş yayınlar",
+    "description": "Bir kanalın VOD'larına göz atın ve birkaçını senkronize izleyin.",
+    "channelPlaceholder": "Kanal adı veya VOD bağlantısı",
+    "search": "VOD'ları göster",
+    "hint": "Bir Twitch veya Kick kanalı arayın ya da bir VOD bağlantısı yapıştırın. Zaman olarak çakışan VOD'lar ortak bir zaman çizelgesinde birlikte oynatılır.",
+    "empty": "Bu kanal için geçmiş yayın bulunamadı.",
+    "loadMore": "Daha fazla yükle",
+    "added": "Eklendi",
+    "recording": "Kaydediliyor",
+    "badge": "VOD",
+    "views": "{count} görüntülenme",
+    "overlaps": "{name} ile çakışıyor",
+    "seek": "Konum",
+    "errors": {
+      "restricted": "Bu VOD yalnızca abonelere açık veya kısıtlı.",
+      "notFound": "VOD veya kanal bulunamadı.",
+      "generic": "VOD'lar yüklenemedi. Tekrar deneyin.",
+      "playback": "Bu VOD oynatılamadı.",
+      "unsupported": "Bu WebView'de VOD oynatma desteklenmiyor."
+    },
+    "player": {
+      "startsIn": "{time} sonra başlıyor",
+      "ended": "{time} önce bitti",
+      "waiting": "Canlı yayına yetişiliyor…",
+      "jumpHere": "Bu VOD'a git",
+      "jumpToLatest": "En yeniye git",
+      "wallClock": "Orijinal yayın saati"
+    },
+    "sync": {
+      "label": "VOD zaman çizelgesi",
+      "toggle": "Senkron",
+      "off": "Senkronizasyon kapalı: her VOD ayrı oynatılır.",
+      "noOverlap": "Bu VOD'lar zaman olarak çakışmıyor.",
+      "overlap": "Çakışma: {duration}",
+      "buffering": "Arabelleğe alınıyor…",
+      "back10": "10 saniye geri",
+      "forward10": "10 saniye ileri",
+      "showLanes": "Zaman çizelgelerini göster",
+      "hideLanes": "Zaman çizelgelerini gizle",
+      "offsetDelay": "Bu VOD'u 0,5 sn geciktir",
+      "offsetAdvance": "Bu VOD'u 0,5 sn öne al",
+      "resetOffset": "Kaydırmayı sıfırla",
+      "activeCount": "Bu anda {total} VOD'dan {active} tanesi"
+    },
+    "toasts": {
+      "added": "{name} VOD'u eklendi",
+      "alreadyAdded": "Bu VOD zaten ızgarada"
     }
   }
 }

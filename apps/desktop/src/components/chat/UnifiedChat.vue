@@ -30,8 +30,8 @@ function openAuthModal() {
 
 const isInitializing = ref(true);
 
-const hasTwitch = computed(() => streams.value.some((s) => s.platform === "twitch"));
-const hasKick = computed(() => streams.value.some((s) => s.platform === "kick"));
+const hasTwitch = computed(() => streams.value.some((s) => s.platform === "twitch" && !s.vod));
+const hasKick = computed(() => streams.value.some((s) => s.platform === "kick" && !s.vod));
 
 const skeletonIcons = computed(() => {
   if (hasTwitch.value && hasKick.value) {
