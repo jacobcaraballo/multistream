@@ -3,8 +3,15 @@ import type { DialogContentEmits, DialogContentProps } from "reka-ui";
 import type { HTMLAttributes } from "vue";
 import { reactiveOmit } from "@vueuse/core";
 import { X } from "@lucide/vue";
-import { DialogClose, DialogContent, DialogPortal, useForwardPropsEmits } from "reka-ui";
+import {
+  DialogClose,
+  DialogContent,
+  DialogPortal,
+  injectDialogRootContext,
+  useForwardPropsEmits,
+} from "reka-ui";
 import { cn } from "@/lib/utils";
+import { useDialogDim } from "@/composables/useDialogDim";
 import DialogOverlay from "./DialogOverlay.vue";
 
 defineOptions({
@@ -27,6 +34,9 @@ const emits = defineEmits<DialogContentEmits>();
 const delegatedProps = reactiveOmit(props, "class");
 
 const forwarded = useForwardPropsEmits(delegatedProps, emits);
+
+const rootContext = injectDialogRootContext();
+useDialogDim(() => rootContext.open.value);
 </script>
 
 <template>

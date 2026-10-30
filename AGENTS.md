@@ -231,6 +231,7 @@ _(See [`multistream-website`](.agents/skills/website/SKILL.md) for full guide)_
   - **Pre-Flight Checklist:** Always run `bun run i18n:check` before considering any UI implementation complete to guarantee 100% key parity across all 10 files. Do not rely solely on Vue `$t` fallbacks.
 
 - **UI Components (shadcn-vue):**
+  - **No `:has()` for dialog state:** WebKit (macOS/Linux) can skip re-checking a `:has()` selector when the matched element unmounts, so a `body:has(dialog)` rule stayed applied after close and left the app dimmed and unclickable. Dialogs toggle `body.dialog-open` via `useDialogDim` instead.
   - ALWAYS use shadcn-vue components whenever possible. However, carefully evaluate the trade-off between the component's size/performance and simpler native or lightweight alternatives, choosing what is best for the specific context.
 
 - **Auth & Network State Handling (Tauri/Rust):**
