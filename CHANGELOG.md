@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.19.6] - 2026-10-30
+
+### Features
+
+- **vods**: Browse and watch twitch and kick vods in sync ([5b3c002](https://github.com/jacobcaraballo/multistream/commit/5b3c0020aed4bbfceadaa5fcd33d760c9faa0ec8))
+- **vods**: Add playback speed control ([7534c18](https://github.com/jacobcaraballo/multistream/commit/7534c1893a60ec20cb05b5404b900ae92d53714e))
+
+### Refactoring
+
+- **youtube**: Return live badge check directly to satisfy clippy ([2fdabff](https://github.com/jacobcaraballo/multistream/commit/2fdabffb31c9c446bab42adc8cbd5b10f2cf2696))
+
 ## [0.19.5] - 2026-10-21
 
 ### Bug Fixes
