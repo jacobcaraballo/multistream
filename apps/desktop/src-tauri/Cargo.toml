@@ -59,6 +59,11 @@ libc = "0.2"
 [target.'cfg(target_os = "macos")'.dependencies]
 tar = "0.4"
 flate2 = "1.0"
+# already compiled for wry; used to delete `.twitch.tv` cookies, which wry's delete_cookie misses
+block2 = "0.6"
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSHTTPCookie", "NSString"] }
+objc2-web-kit = { version = "0.3", default-features = false, features = ["std", "block2", "WKHTTPCookieStore", "WKWebsiteDataStore"] }
 
 [target.'cfg(windows)'.dependencies]
 tauri-winrt-notification = "0.7.3"

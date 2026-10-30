@@ -18,7 +18,7 @@ use super::error::TwitchError;
 pub const WEB_CLIENT_ID: &str = "kimne78kx3ncx6brgo4mv6wki5h1ko";
 pub const GQL_URL: &str = "https://gql.twitch.tv/gql";
 
-const TWITCH_URL: &str = "https://www.twitch.tv";
+const TWITCH_DOMAIN: &str = "twitch.tv";
 const LOGIN_URL: &str = "https://www.twitch.tv/login";
 const AUTH_COOKIE: &str = "auth-token";
 const LOGIN_WINDOW: &str = "twitch-web-login";
@@ -56,11 +56,25 @@ pub(crate) fn find_auth_token(cookies: &[Cookie<'_>]) -> Option<String> {
         .map(|c| c.value().trim().to_string())
 }
 
+fn is_twitch_domain(domain: &str) -> bool {
+    let domain = domain.trim_start_matches('.');
+    domain == TWITCH_DOMAIN || domain.ends_with(".twitch.tv")
+}
+
+pub(crate) fn is_twitch_cookie(cookie: &Cookie<'_>) -> bool {
+    cookie.domain().is_some_and(is_twitch_domain)
+}
+
+// Twitch sets the session on `.twitch.tv` or on `www.twitch.tv` depending on the login path, and
+// wry's macOS `cookies_for_url` only returns cookies whose domain equals the URL's host, which
+// misses the first. Filtering every cookie by domain finds both.
 fn twitch_cookies<R: Runtime>(window: &WebviewWindow<R>) -> Vec<Cookie<'static>> {
-    let Ok(url) = tauri::Url::parse(TWITCH_URL) else {
-        return Vec::new();
-    };
-    window.cookies_for_url(url).unwrap_or_default()
+    window
+        .cookies()
+        .unwrap_or_default()
+        .into_iter()
+        .filter(is_twitch_cookie)
+        .collect()
 }
 
 /// The signed-in twitch.tv session token, if any.
@@ -137,13 +151,111 @@ async fn emit_current_state<R: Runtime>(app: &AppHandle<R>) {
     let _ = app.emit(SESSION_CHANGED_EVENT, state);
 }
 
-fn delete_auth_cookies<R: Runtime>(window: &WebviewWindow<R>) {
-    for cookie in twitch_cookies(window)
-        .into_iter()
-        .filter(|c| c.name() == AUTH_COOKIE)
-    {
-        let _ = window.delete_cookie(cookie);
+// Signing out clears every twitch.tv cookie: twitch.tv's own pages rebuild `auth-token` from
+// `twilight-user` and `persistent`, so deleting `auth-token` alone signs straight back in.
+#[cfg(not(target_os = "macos"))]
+async fn delete_twitch_cookies<R: Runtime>(app: &AppHandle<R>) {
+    let Some(main) = app.get_webview_window(MAIN_WINDOW) else {
+        return;
+    };
+    for cookie in twitch_cookies(&main) {
+        let _ = main.delete_cookie(cookie);
     }
+}
+
+// wry rebuilds a cookie from its dot-less domain before deleting it, and WebKit treats that as a
+// different, host-only cookie, so `.twitch.tv` cookies would survive. Delete WebKit's own cookie
+// objects instead (Tauri windows share the default data store).
+#[cfg(target_os = "macos")]
+async fn delete_twitch_cookies<R: Runtime>(app: &AppHandle<R>) {
+    use std::cell::Cell;
+    use std::ptr::NonNull;
+    use std::rc::Rc;
+
+    use block2::RcBlock;
+    use objc2::MainThreadMarker;
+    use objc2_foundation::{NSArray, NSHTTPCookie};
+    use objc2_web_kit::WKWebsiteDataStore;
+
+    let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+    let _ = app.run_on_main_thread(move || {
+        let Some(mtm) = MainThreadMarker::new() else {
+            return;
+        };
+        let done = Rc::new(Cell::new(Some(tx)));
+        let finish = move |done: &Cell<Option<tokio::sync::oneshot::Sender<()>>>| {
+            if let Some(tx) = done.take() {
+                let _ = tx.send(());
+            }
+        };
+        // SAFETY: called on the main thread, as WebKit requires
+        let store = unsafe { WKWebsiteDataStore::defaultDataStore(mtm).httpCookieStore() };
+        let delete_from = store.clone();
+        let on_cookies = RcBlock::new(move |cookies: NonNull<NSArray<NSHTTPCookie>>| {
+            // SAFETY: WebKit passes a valid array for the duration of the callback
+            let twitch: Vec<_> = unsafe { cookies.as_ref() }
+                .to_vec()
+                .into_iter()
+                .filter(|c| is_twitch_domain(&c.domain().to_string()))
+                .collect();
+            if twitch.is_empty() {
+                finish(&done);
+                return;
+            }
+            let remaining = Rc::new(Cell::new(twitch.len()));
+            for cookie in twitch {
+                let (done, remaining) = (done.clone(), remaining.clone());
+                let on_deleted = RcBlock::new(move || {
+                    remaining.set(remaining.get() - 1);
+                    if remaining.get() == 0 {
+                        finish(&done);
+                    }
+                });
+                // SAFETY: still on the main thread inside WebKit's callback
+                unsafe { delete_from.deleteCookie_completionHandler(&cookie, Some(&on_deleted)) };
+            }
+        });
+        // SAFETY: called on the main thread, as WebKit requires
+        unsafe { store.getAllCookies(&on_cookies) };
+    });
+    let _ = tokio::time::timeout(Duration::from_secs(5), rx).await;
+}
+
+// Twitch's login runs Kasada bot detection, which rejects a WebKit engine that claims to be Chrome
+// ("Your browser is not currently supported"), so the login window must not spoof Chrome there.
+// WebKitGTK's default user agent already reads as Safari. WebView2 requires every window to share
+// one user agent, so Windows keeps the app-wide one.
+#[cfg(target_os = "windows")]
+fn login_user_agent() -> Option<String> {
+    Some(crate::USER_AGENT.to_string())
+}
+
+#[cfg(target_os = "macos")]
+fn login_user_agent() -> Option<String> {
+    let info = std::fs::read_to_string("/Applications/Safari.app/Contents/Info.plist").ok()?;
+    safari_user_agent(&info)
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
+fn login_user_agent() -> Option<String> {
+    None
+}
+
+/// Safari's user agent for the version in Safari's `Info.plist`, matching WKWebView's engine.
+#[cfg(any(target_os = "macos", test))]
+pub(crate) fn safari_user_agent(info_plist: &str) -> Option<String> {
+    let key = info_plist.find("<key>CFBundleShortVersionString</key>")?;
+    let rest = &info_plist[key..];
+    let start = rest.find("<string>")? + "<string>".len();
+    let end = start + rest[start..].find("</string>")?;
+    let version = rest[start..end].trim();
+    if version.is_empty() || !version.chars().all(|c| c.is_ascii_digit() || c == '.') {
+        return None;
+    }
+    Some(format!(
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/{} Safari/605.1.15",
+        version
+    ))
 }
 
 #[tauri::command]
@@ -166,21 +278,21 @@ pub async fn twitch_web_login(app: AppHandle) -> Result<(), TwitchError> {
             return Ok(());
         }
         // a stale cookie would make the poll below succeed before the user signs in again
-        if let Some(main) = app.get_webview_window(MAIN_WINDOW) {
-            delete_auth_cookies(&main);
-        }
+        delete_twitch_cookies(&app).await;
     }
 
     let url = LOGIN_URL
         .parse()
         .map_err(|e| TwitchError::Internal(format!("Invalid login URL: {}", e)))?;
-    WebviewWindowBuilder::new(&app, LOGIN_WINDOW, WebviewUrl::External(url))
+    let mut builder = WebviewWindowBuilder::new(&app, LOGIN_WINDOW, WebviewUrl::External(url))
         .title("Twitch")
         .inner_size(520.0, 760.0)
         .center()
-        // WebView2 requires every window to share the same user agent and browser arguments
-        .user_agent(crate::USER_AGENT)
-        .additional_browser_args(crate::BROWSER_ARGS)
+        .additional_browser_args(crate::BROWSER_ARGS);
+    if let Some(user_agent) = login_user_agent() {
+        builder = builder.user_agent(&user_agent);
+    }
+    builder
         .build()
         .map_err(|e| TwitchError::Internal(format!("Failed to open Twitch login: {}", e)))?;
 
@@ -210,9 +322,7 @@ pub async fn twitch_web_login(app: AppHandle) -> Result<(), TwitchError> {
 
 #[tauri::command]
 pub async fn twitch_web_logout(app: AppHandle) -> Result<(), TwitchError> {
-    if let Some(main) = app.get_webview_window(MAIN_WINDOW) {
-        delete_auth_cookies(&main);
-    }
+    delete_twitch_cookies(&app).await;
     let _ = app.emit(SESSION_CHANGED_EVENT, WebSessionState::default());
     Ok(())
 }
@@ -299,6 +409,56 @@ mod tests {
         assert_eq!(
             json,
             r#"{"connected":true,"login":"jacob","hasTurbo":true}"#
+        );
+    }
+
+    #[test]
+    fn should_match_twitch_cookies_on_the_root_domain_and_subdomains() {
+        // Arrange
+        let cookie = |domain: &str| {
+            Cookie::build(("auth-token", "tok"))
+                .domain(domain.to_string())
+                .build()
+        };
+
+        // Act / Assert
+        assert!(is_twitch_cookie(&cookie(".twitch.tv")));
+        assert!(is_twitch_cookie(&cookie("twitch.tv")));
+        assert!(is_twitch_cookie(&cookie("www.twitch.tv")));
+        assert!(!is_twitch_cookie(&cookie("nottwitch.tv")));
+        assert!(!is_twitch_cookie(&cookie("twitch.tv.example.com")));
+        assert!(!is_twitch_cookie(&Cookie::new("auth-token", "tok")));
+    }
+
+    #[test]
+    fn should_build_a_safari_user_agent_from_its_info_plist() {
+        // Arrange
+        let plist = r#"<dict>
+	<key>CFBundleIdentifier</key>
+	<string>com.apple.Safari</string>
+	<key>CFBundleShortVersionString</key>
+	<string>27.0.1</string>
+	<key>CFBundleVersion</key>
+	<string>21624.1.12</string>
+</dict>"#;
+
+        // Act
+        let user_agent = safari_user_agent(plist);
+
+        // Assert
+        assert_eq!(
+            user_agent.as_deref(),
+            Some("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.0.1 Safari/605.1.15")
+        );
+    }
+
+    #[test]
+    fn should_not_build_a_safari_user_agent_without_a_clean_version() {
+        // Act / Assert
+        assert_eq!(safari_user_agent("<dict></dict>"), None);
+        assert_eq!(
+            safari_user_agent("<key>CFBundleShortVersionString</key><string>27 beta\"</string>"),
+            None
         );
     }
 }
