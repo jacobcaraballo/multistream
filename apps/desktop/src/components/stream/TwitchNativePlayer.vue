@@ -23,6 +23,8 @@ import {
 import { TwitchIcon } from "@/components/icons";
 import { useNetworkStatus } from "@/composables/useNetworkStatus";
 import { useFocusedStream } from "@/composables/useFocusedStream";
+import { useFullscreenLayout } from "@/composables/useFullscreenLayout";
+import { useWheelVolume } from "@/composables/useWheelVolume";
 
 const props = defineProps<{
   channel: string;
@@ -37,9 +39,10 @@ const { t } = useI18n();
 const { isOnline } = useNetworkStatus();
 const { audioStreamId } = useFocusedStream();
 
+const layout = useFullscreenLayout();
+const isFullscreen = computed(() => !!props.channelid && layout.isMain(props.channelid));
 const isCompact = computed(() => !props.isFocused && !isFullscreen.value);
 const videoRef = ref<HTMLVideoElement | null>(null);
-const containerRef = ref<HTMLDivElement | null>(null);
 const isLoading = ref(true);
 const isBuffering = ref(false);
 const hasError = ref(false);
@@ -62,7 +65,13 @@ function retryLoad() {
 const isPlaying = ref(true);
 const isMuted = ref(true);
 const volume = ref([50]);
-const isFullscreen = ref(false);
+// the wheel over the player changes its volume
+const onWheel = useWheelVolume({
+  streamId: () => props.channelid,
+  volume,
+  isMuted,
+  video: videoRef,
+});
 const showControls = ref(true);
 const qualityMenuOpen = ref(false);
 const qualityMenuRef = ref<HTMLDivElement | null>(null);
@@ -72,6 +81,7 @@ onClickOutside(qualityMenuRef, () => {
 });
 const availableLevels = ref<{ height: number; label: string }[]>([]);
 const currentLevelIndex = ref(-1);
+const LIVE_RESYNC_LATENCY_S = 30;
 let hideTimer: ReturnType<typeof setTimeout> | null = null;
 
 const volumeIcon = computed(() => {
@@ -185,24 +195,9 @@ function toggleQualityMenu() {
   }
 }
 
-// fullscreen the whole tile (the player's parent) so tile overlays such as chat come along
-const fullscreenTarget = () => containerRef.value?.parentElement ?? containerRef.value;
-
-async function toggleFullscreen() {
-  const tile = fullscreenTarget();
-  if (!tile) return;
-  if (document.fullscreenElement) {
-    await document.exitFullscreen();
-    isFullscreen.value = false;
-  } else {
-    await tile.requestFullscreen();
-    isFullscreen.value = true;
-  }
-}
-
-function onFullscreenChange() {
-  const el = document.fullscreenElement;
-  isFullscreen.value = !!el && (el === containerRef.value || el === fullscreenTarget());
+// fullscreen is the app's PiP layout with this tile filling the screen
+function toggleFullscreen() {
+  if (props.channelid) layout.toggle(props.channelid);
 }
 
 function buildLevelLabel(level: { height: number; attrs?: Record<string, string> }) {
@@ -273,6 +268,9 @@ async function loadStream() {
         enableWorker: true,
         lowLatencyMode: true,
         backBufferLength: 30,
+        // pick the rendition the tile can show instead of source for every tile
+        capLevelToPlayerSize: true,
+        maxDevicePixelRatio: 1.5,
       });
 
       hls.on(Hls.Events.MANIFEST_PARSED, (_e, data) => {
@@ -503,16 +501,16 @@ function onVideoWaiting() {
   if (!isPlaying.value) return;
   isBuffering.value = true;
   clearWatchdog();
-  // Auto-recover if stuck in buffering for 4 seconds
+  // stuck for 4 seconds: on auto quality, ask for a lighter rendition so the next segments
+  // arrive sooner; jumping to the live edge would drop the segment in flight and land on
+  // nothing buffered, so only do that once playback has fallen far behind
   stallWatchdog = setTimeout(() => {
-    if (isBuffering.value && isPlaying.value && videoRef.value) {
-      // Simulate manual pause
+    if (!isBuffering.value || !isPlaying.value || !videoRef.value || !hls) return;
+    if (currentLevelIndex.value === -1 && hls.currentLevel > 0) {
+      hls.nextLoadLevel = hls.currentLevel - 1;
+    }
+    if (hls.latency > LIVE_RESYNC_LATENCY_S) {
       videoRef.value.pause();
-      // Simulate quality switch to force buffer flush
-      if (hls) {
-        hls.nextLoadLevel = hls.currentLevel;
-      }
-      // Resume playback at live edge
       snapToLive();
     }
   }, 4000);
@@ -543,7 +541,6 @@ function onStreamReloadEvent(e: Event) {
 
 onMounted(() => {
   loadStream();
-  document.addEventListener("fullscreenchange", onFullscreenChange);
   window.addEventListener("multistream-reload-stream", onStreamReloadEvent);
 });
 
@@ -567,16 +564,15 @@ onBeforeUnmount(() => {
     hls.destroy();
     hls = null;
   }
-  document.removeEventListener("fullscreenchange", onFullscreenChange);
   window.removeEventListener("multistream-reload-stream", onStreamReloadEvent);
 });
 </script>
 
 <template>
   <div
-    ref="containerRef"
     class="relative w-full h-full bg-black group select-none"
     @mousemove="onMouseMove"
+    @wheel="onWheel"
     @mouseleave="onMouseLeave"
     @click.self="togglePlay"
   >

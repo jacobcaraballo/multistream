@@ -32,10 +32,13 @@ import { useVodSync } from "@/composables/useVodSync";
 import { useStreams } from "@/composables/useStreams";
 import { useNetworkStatus } from "@/composables/useNetworkStatus";
 import { useFocusedStream } from "@/composables/useFocusedStream";
+import { useFullscreenLayout } from "@/composables/useFullscreenLayout";
+import { useWheelVolume } from "@/composables/useWheelVolume";
 import { formatClock, formatSpan, stripEndlist, vodErrorKey, type Vod } from "@/lib/vod";
 import { LIVE_EDGE_BUFFER_MS, PLAYBACK_SPEEDS, mediaTarget } from "@/lib/vodSync";
 import { previewAt, type VodPreviews } from "@/lib/vodPreviews";
 import { loadVodPreviews } from "@/composables/useVodPreviews";
+import { withDropRetry } from "@/lib/hlsRetry";
 import VodSeekBar from "./VodSeekBar.vue";
 
 const props = defineProps<{
@@ -48,17 +51,26 @@ const props = defineProps<{
 const MAX_RETRIES = 3;
 const KICK_STATUS_POLL_MS = 60_000;
 const STALL_CHECK_MS = 1000;
+// starving with no segment on its way is the WebKit dropped-buffer signature: rebuild quickly
 const STALL_RECOVERY_MS = 6000;
+// a segment that is still downloading gets much longer before the buffer is thrown away
+const STALL_RECOVERY_LOADING_MS = 20_000;
 const LIVE_EDGE_SLACK_S = 15;
+const HAVE_CURRENT_DATA = 2;
+// the tile being watched buffers further ahead; the rest keep hls.js' defaults to save memory
+const PRIMARY_BUFFER = { maxBufferLength: 120, maxBufferSize: 150_000_000 };
+const SECONDARY_BUFFER = { maxBufferLength: 30, maxBufferSize: 60_000_000 };
 
 const { t, locale } = useI18n();
 const { isOnline } = useNetworkStatus();
 const { updateVod } = useStreams();
 const sync = useVodSync();
 const { audioStreamId } = useFocusedStream();
+const layout = useFullscreenLayout();
+// fullscreen is the app's PiP layout with this tile filling the screen
+const isFullscreen = computed(() => layout.isMain(props.streamId));
 
 const videoRef = ref<HTMLVideoElement | null>(null);
-const containerRef = ref<HTMLDivElement | null>(null);
 const settingsMenuRef = ref<HTMLDivElement | null>(null);
 
 const isLoading = ref(true);
@@ -67,7 +79,13 @@ const errorKey = ref("");
 const errorDetails = ref("");
 const isMuted = ref(true);
 const volume = ref([50]);
-const isFullscreen = ref(false);
+// the wheel over the player changes its volume
+const onWheel = useWheelVolume({
+  streamId: () => props.streamId,
+  volume,
+  isMuted,
+  video: videoRef,
+});
 const showControls = ref(true);
 const settingsMenuOpen = ref(false);
 const localPaused = ref(true);
@@ -79,6 +97,7 @@ const endS = ref(props.vod.durationSeconds);
 const isRecording = ref(props.vod.isRecording);
 const availableLevels = ref<{ height: number; label: string }[]>([]);
 const currentLevelIndex = ref(-1);
+const bufferedRanges = shallowRef<[number, number][]>([]);
 
 let hls: Hls | null = null;
 let retryCount = 0;
@@ -89,6 +108,9 @@ let statusPoll: ReturnType<typeof setInterval> | null = null;
 let stallTimer: ReturnType<typeof setInterval> | null = null;
 let stalledSince = 0;
 let stallRecoveries = 0;
+let fragmentLoading = false;
+// last frame shown, so a reload while sync is off resumes there instead of at 0
+let resumeTime = 0;
 let currentLoadId = 0;
 let isDisposed = false;
 
@@ -97,7 +119,13 @@ onClickOutside(settingsMenuRef, () => {
 });
 
 const platform = computed(() => PLATFORMS[props.vod.platform]);
-const isSynced = computed(() => sync.syncEnabled.value);
+const isSynced = computed(() => sync.syncActive.value);
+const isPrimary = computed(
+  () =>
+    !!props.isFocused ||
+    audioStreamId.value === props.streamId ||
+    sync.vodStreams.value.length === 1
+);
 const isCompact = computed(() => !props.isFocused && !isFullscreen.value);
 const isPlaying = computed(() => (isSynced.value ? sync.isPlaying.value : !localPaused.value));
 const currentSpeed = computed(() => (isSynced.value ? sync.speed.value : localSpeed.value));
@@ -199,7 +227,7 @@ function setError(key: string, details = "") {
   errorKey.value = key;
   errorDetails.value = details;
   isLoading.value = false;
-  sync.updatePlayer(props.streamId, { status: "error" });
+  sync.updatePlayer(props.streamId, { status: "error", resumeS: resumeTime });
 }
 
 function onLevelDetails(details: LevelDetails) {
@@ -211,7 +239,6 @@ function onLevelDetails(details: LevelDetails) {
   endS.value = details.edge;
   isRecording.value = details.live;
   isLoading.value = false;
-  retryCount = 0;
   sync.updatePlayer(props.streamId, {
     status: "ready",
     startMs: startMs.value,
@@ -241,13 +268,20 @@ function scheduleRetry() {
   );
 }
 
+// the frame on screen, so a reload resumes there (destroying hls.js resets the element to 0)
+function noteResumeTime() {
+  const video = videoRef.value;
+  if (hls && video && video.readyState >= HAVE_CURRENT_DATA) resumeTime = video.currentTime;
+}
+
 async function loadVod() {
   if (isDisposed) return;
   const loadId = ++currentLoadId;
+  noteResumeTime();
   isLoading.value = true;
   errorKey.value = "";
   errorDetails.value = "";
-  sync.updatePlayer(props.streamId, { status: "loading" });
+  sync.updatePlayer(props.streamId, { status: "loading", resumeS: resumeTime });
 
   let url: string;
   try {
@@ -269,23 +303,35 @@ async function loadVod() {
   const video = videoRef.value;
   if (isDisposed || loadId !== currentLoadId || !video) return;
 
+  // it kept playing while the playback URL loaded
+  noteResumeTime();
+  sync.updatePlayer(props.streamId, { resumeS: resumeTime });
   hls?.destroy();
   hls = null;
+  fragmentLoading = false;
 
   if (!Hls.isSupported()) {
     setError("vods.errors.unsupported");
     return;
   }
 
+  const finished = !isRecording.value && resumeTime >= endS.value - 1;
   const config: Partial<HlsConfig> = {
     enableWorker: true,
-    startPosition: sync.initialMediaTime(props.streamId),
+    startPosition: sync.initialMediaTime(props.streamId) ?? (finished ? 0 : resumeTime),
     capLevelToPlayerSize: true,
-    maxBufferLength: 30,
-    backBufferLength: 30,
+    // full Retina density put every mid-sized tile on source quality, and four of those
+    // starve most connections; 1.5 keeps big tiles sharp and drops grid tiles a level
+    maxDevicePixelRatio: 1.5,
+    ...(isPrimary.value ? PRIMARY_BUFFER : SECONDARY_BUFFER),
+    backBufferLength: 20,
   };
   if (props.vod.platform === "kick") {
     config.pLoader = createEndlistStrippingLoader(() => !!props.vod.isRecording);
+  } else {
+    // Twitch loads through the streaming relay, which can only cut a failed response short
+    config.fragLoadPolicy = withDropRetry(Hls.DefaultConfig.fragLoadPolicy);
+    config.playlistLoadPolicy = withDropRetry(Hls.DefaultConfig.playlistLoadPolicy);
   }
 
   const instance = new Hls(config);
@@ -306,10 +352,32 @@ async function loadVod() {
   });
 
   let networkRetries = 0;
+  instance.on(Hls.Events.FRAG_LOADING, () => {
+    fragmentLoading = true;
+  });
   instance.on(Hls.Events.FRAG_LOADED, () => {
     networkRetries = 0;
   });
+  instance.on(Hls.Events.FRAG_LOAD_EMERGENCY_ABORTED, () => {
+    fragmentLoading = false;
+  });
+  // a segment counts as on its way until it is in the buffer (transmuxing and appending take a
+  // moment after the download), so the watchdog never discards one that just arrived
+  instance.on(Hls.Events.FRAG_BUFFERED, () => {
+    fragmentLoading = false;
+    stallRecoveries = 0;
+    // a fresh playback URL is only spent again once media actually plays
+    retryCount = 0;
+    updateBuffered();
+  });
   instance.on(Hls.Events.ERROR, (_e, data) => {
+    if (
+      data.details === Hls.ErrorDetails.FRAG_LOAD_ERROR ||
+      data.details === Hls.ErrorDetails.FRAG_LOAD_TIMEOUT ||
+      data.details === Hls.ErrorDetails.FRAG_PARSING_ERROR
+    ) {
+      fragmentLoading = false;
+    }
     if (isDisposed || !data.fatal) return;
 
     if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
@@ -318,16 +386,23 @@ async function loadVod() {
     }
     if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
       if (!isOnline.value) return;
-      // usher tokens expire; a fresh playback URL fixes 403s
-      if (data.response?.code === 403) {
+      // usher tokens expire; a fresh playback URL fixes 403s. startLoad can't refetch a failed
+      // manifest either, so nothing loaded yet means starting over too
+      if (data.response?.code === 403 || isLoading.value) {
         scheduleRetry();
         return;
       }
+      // a blip shorter than offline detection: back off instead of failing at once
       if (networkRetries < MAX_RETRIES) {
         networkRetries++;
-        instance.startLoad();
+        setTimeout(() => {
+          if (hls === instance && !isDisposed) instance.startLoad();
+        }, 1000 * networkRetries);
         return;
       }
+      // then start over with a fresh playback URL (this gives up after its own retries)
+      scheduleRetry();
+      return;
     }
     setError("vods.errors.playback", `${data.type}: ${data.details}`);
   });
@@ -357,6 +432,8 @@ function seekTo(seconds: number) {
     sync.seekPlayer(props.streamId, seconds);
     return;
   }
+  // a reload before the new position decodes resumes there, not at the frame left behind
+  resumeTime = seconds;
   if (videoRef.value) videoRef.value.currentTime = seconds;
 }
 
@@ -443,22 +520,8 @@ function setQuality(index: number) {
   settingsMenuOpen.value = false;
 }
 
-// fullscreen the whole tile (the player's parent) so tile overlays such as chat come along
-const fullscreenTarget = () => containerRef.value?.parentElement ?? containerRef.value;
-
-async function toggleFullscreen() {
-  const tile = fullscreenTarget();
-  if (!tile) return;
-  if (document.fullscreenElement) {
-    await document.exitFullscreen();
-  } else {
-    await tile.requestFullscreen();
-  }
-}
-
-function onFullscreenChange() {
-  const el = document.fullscreenElement;
-  isFullscreen.value = !!el && (el === containerRef.value || el === fullscreenTarget());
+function toggleFullscreen() {
+  layout.toggle(props.streamId);
 }
 
 function resetHideTimer() {
@@ -488,7 +551,18 @@ function handleVideoClick() {
 }
 
 function onTimeUpdate() {
-  if (videoRef.value) currentTime.value = videoRef.value.currentTime;
+  const video = videoRef.value;
+  if (!video) return;
+  currentTime.value = video.currentTime;
+  if (hls && video.readyState >= HAVE_CURRENT_DATA) resumeTime = video.currentTime;
+}
+
+function updateBuffered() {
+  const ranges = videoRef.value?.buffered;
+  if (!ranges) return;
+  const next: [number, number][] = [];
+  for (let i = 0; i < ranges.length; i++) next.push([ranges.start(i), ranges.end(i)]);
+  bufferedRanges.value = next;
 }
 
 function onWaiting() {
@@ -498,7 +572,11 @@ function onWaiting() {
 // keep the bar on the seek target instead of snapping back until the new position plays
 function onSeeking() {
   onWaiting();
-  if (videoRef.value) currentTime.value = videoRef.value.currentTime;
+  const video = videoRef.value;
+  if (!video) return;
+  currentTime.value = video.currentTime;
+  // a seek always targets a real position (resetting to 0 on destroy doesn't seek)
+  if (hls) resumeTime = video.currentTime;
 }
 
 function onPlaying() {
@@ -539,7 +617,9 @@ function checkStall() {
     stalledSince = 0;
     return;
   }
-  const shouldPlay = isSynced.value ? phase.value === "active" : !video.paused;
+  const shouldPlay = isSynced.value
+    ? phase.value === "active" && sync.isPlaying.value
+    : !video.paused;
   const starving = video.seeking || video.readyState < 3;
   const atEdge = isRecording.value
     ? video.currentTime >= endS.value - LIVE_EDGE_SLACK_S
@@ -551,7 +631,9 @@ function checkStall() {
 
   const now = Date.now();
   if (!stalledSince) stalledSince = now;
-  if (now - stalledSince < STALL_RECOVERY_MS) return;
+  // a slow segment that is still arriving fills the gap on its own; rebuilding would discard it
+  const limit = fragmentLoading ? STALL_RECOVERY_LOADING_MS : STALL_RECOVERY_MS;
+  if (now - stalledSince < limit) return;
 
   stalledSince = 0;
   stallRecoveries++;
@@ -576,8 +658,17 @@ watch(isSynced, (synced) => {
   applyLocalSpeed();
 });
 
+// hls.js stops loading when the network drops (fatal network errors are ignored while offline);
+// pick up from the current frame instead of reloading from scratch
 watch(isOnline, (online) => {
-  if (online && hasError.value) retryLoad();
+  if (!online) return;
+  // nothing loaded yet (the manifest failed): startLoad can't fetch a manifest, reload instead
+  if (hasError.value || !hls || isLoading.value) retryLoad();
+  else hls.startLoad();
+});
+
+watch(isPrimary, (primary) => {
+  if (hls) Object.assign(hls.config, primary ? PRIMARY_BUFFER : SECONDARY_BUFFER);
 });
 
 function onStreamReloadEvent(e: Event) {
@@ -598,7 +689,6 @@ onMounted(() => {
   }
   loadVod();
   stallTimer = setInterval(checkStall, STALL_CHECK_MS);
-  document.addEventListener("fullscreenchange", onFullscreenChange);
   window.addEventListener("multistream-reload-stream", onStreamReloadEvent);
 });
 
@@ -612,17 +702,16 @@ onBeforeUnmount(() => {
   sync.unregisterPlayer(props.streamId);
   hls?.destroy();
   hls = null;
-  document.removeEventListener("fullscreenchange", onFullscreenChange);
   window.removeEventListener("multistream-reload-stream", onStreamReloadEvent);
 });
 </script>
 
 <template>
   <div
-    ref="containerRef"
     class="relative w-full h-full bg-black group select-none"
     :data-testid="`vod-player-${vod.id}`"
     @mousemove="resetHideTimer"
+    @wheel="onWheel"
     @mouseleave="onMouseLeave"
   >
     <Skeleton v-if="isLoading && !hasError" class="absolute inset-0 bg-[#1e2127]" />
@@ -678,7 +767,12 @@ onBeforeUnmount(() => {
     </div>
 
     <div
-      v-if="isBuffering && !isLoading && !hasError && !overlay"
+      v-if="
+        (isBuffering || (isSynced && sync.isHolding(streamId))) &&
+        !isLoading &&
+        !hasError &&
+        !overlay
+      "
       class="absolute inset-0 flex items-center justify-center pointer-events-none z-10"
     >
       <Loader2 class="size-8 text-white animate-spin opacity-75" aria-hidden="true" />
@@ -691,6 +785,8 @@ onBeforeUnmount(() => {
       playsinline
       :muted="isMuted"
       @timeupdate="onTimeUpdate"
+      @progress="updateBuffered"
+      @emptied="updateBuffered"
       @waiting="onWaiting"
       @seeking="onSeeking"
       @play="localPaused = false"
@@ -754,6 +850,7 @@ onBeforeUnmount(() => {
             :label="t('vods.seek')"
             :compact="isCompact"
             :preview-for="previewFor"
+            :buffered="bufferedRanges"
             class="mb-1.5"
             :data-testid="`vod-seek-${vod.id}`"
             @hover="loadPreviews"

@@ -14,6 +14,8 @@ const props = defineProps<{
   compact?: boolean;
   /** Thumbnail for a media second, when the VOD has previews. */
   previewFor?: (seconds: number) => PreviewFrame | null;
+  /** Loaded media as [start, end] seconds, drawn behind the played part. */
+  buffered?: [number, number][];
 }>();
 
 const emit = defineEmits<{
@@ -37,6 +39,13 @@ const length = computed(() => Math.max(props.max, 1));
 const clampValue = (s: number) => Math.min(Math.max(s, 0), length.value);
 const shownValue = computed(() => dragValue.value ?? clampValue(props.value));
 const pct = (s: number) => `${(clampValue(s) / length.value) * 100}%`;
+
+const bufferedSpans = computed(() =>
+  (props.buffered ?? []).map(([start, end]) => ({
+    left: pct(start),
+    width: `${((clampValue(end) - clampValue(start)) / length.value) * 100}%`,
+  }))
+);
 
 function measure() {
   const rect = barRef.value?.getBoundingClientRect();
@@ -147,9 +156,16 @@ function onKeydown(e: KeyboardEvent) {
     @keydown="onKeydown"
   >
     <div
-      class="relative h-1 rounded-full bg-white/25 transition-[height] duration-150 group-hover/seek:h-1.5"
+      class="relative h-1 rounded-full bg-white/20 transition-[height] duration-150 group-hover/seek:h-1.5"
       :class="{ 'h-1.5': dragValue !== null }"
     >
+      <div
+        v-for="(span, i) in bufferedSpans"
+        :key="i"
+        class="absolute inset-y-0 rounded-full bg-white/25"
+        :style="span"
+        data-testid="vod-seek-buffered"
+      />
       <div
         v-if="hoverX !== null && dragValue === null"
         class="absolute inset-y-0 left-0 rounded-full bg-white/30"

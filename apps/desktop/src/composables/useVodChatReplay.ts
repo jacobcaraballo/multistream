@@ -132,7 +132,7 @@ const _useVodChatReplay = () => {
 
       // synced VODs that don't cover the current moment ("starts in" / "ended") have no chat now
       const phase = sync.phases[stream.id];
-      if (sync.syncEnabled.value && phase !== "active") continue;
+      if (sync.syncActive.value && phase !== "active") continue;
 
       const time = sync.mediaTimeOf(stream.id);
       if (time === null) continue;

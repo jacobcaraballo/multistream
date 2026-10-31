@@ -28,12 +28,20 @@ vi.mock("@vueuse/core", async (importOriginal) => {
 const T0 = 1_793_000_000_000;
 const HOUR_S = 3600;
 
+// buffered from `currentTime` for `seconds` (Infinity: everything is loaded)
+const bufferedFor = (video: FakeVideo, seconds: number) => ({
+  length: seconds > 0 ? 1 : 0,
+  start: () => video.currentTime,
+  end: () => video.currentTime + seconds,
+});
+
 class FakeVideo {
   currentTime = 0;
   paused = true;
   seeking = false;
   readyState = 4;
   playbackRate = 1;
+  buffered = bufferedFor(this, Infinity);
   play = vi.fn(() => {
     this.paused = false;
     return Promise.resolve();
@@ -151,7 +159,8 @@ describe("useVodSync", () => {
     const videoB = register(bId, b);
     await nextTick();
     videoB.readyState = 2;
-    vi.advanceTimersByTime(200);
+    videoB.buffered = bufferedFor(videoB, 0);
+    vi.advanceTimersByTime(800);
     const held = sync.position.value;
 
     // Act
@@ -164,12 +173,235 @@ describe("useVodSync", () => {
 
     // Act (buffer refilled)
     videoB.readyState = 4;
+    videoB.buffered = bufferedFor(videoB, Infinity);
     vi.advanceTimersByTime(1000);
 
     // Assert
     expect(sync.position.value).toBeGreaterThan(held);
     expect(sync.isStalled.value).toBe(false);
     expect(videoA.paused).toBe(false);
+  });
+
+  it("should ride out a brief dip without stopping the group", async () => {
+    // Arrange
+    const { aId, bId, a, b } = addTwoVods();
+    const videoA = register(aId, a);
+    const videoB = register(bId, b);
+    await nextTick();
+    const start = sync.position.value;
+
+    // Act
+    videoB.readyState = 2;
+    vi.advanceTimersByTime(400);
+    videoB.readyState = 4;
+    vi.advanceTimersByTime(600);
+
+    // Assert
+    expect(sync.position.value - start).toBeGreaterThanOrEqual(800);
+    expect(sync.isStalled.value).toBe(false);
+    expect(videoA.pause).not.toHaveBeenCalled();
+  });
+
+  it("should resume the group only once the stalled player has a buffer cushion", async () => {
+    // Arrange
+    const { aId, bId, a, b } = addTwoVods();
+    register(aId, a);
+    const videoB = register(bId, b);
+    await nextTick();
+    videoB.readyState = 2;
+    videoB.buffered = bufferedFor(videoB, 0);
+    vi.advanceTimersByTime(800);
+    const held = sync.position.value;
+
+    // Act (a few frames arrive)
+    videoB.readyState = 3;
+    videoB.buffered = bufferedFor(videoB, 0.5);
+    vi.advanceTimersByTime(1000);
+
+    // Assert
+    expect(sync.position.value).toBe(held);
+    expect(sync.isStalled.value).toBe(true);
+
+    // Act (a real cushion)
+    videoB.buffered = bufferedFor(videoB, 3);
+    vi.advanceTimersByTime(1000);
+
+    // Assert
+    expect(sync.position.value).toBeGreaterThan(held);
+    expect(sync.isStalled.value).toBe(false);
+  });
+
+  it("should resume anyway when a held player can play but never builds a cushion", async () => {
+    // Arrange
+    const { aId, bId, a, b } = addTwoVods();
+    register(aId, a);
+    const videoB = register(bId, b);
+    await nextTick();
+    videoB.readyState = 2;
+    videoB.buffered = bufferedFor(videoB, 0);
+    vi.advanceTimersByTime(800);
+    const held = sync.position.value;
+
+    // Act (playable, but its target sits in a gap of the buffer)
+    videoB.readyState = 4;
+    vi.advanceTimersByTime(2000);
+
+    // Assert
+    expect(sync.position.value).toBe(held);
+
+    // Act
+    vi.advanceTimersByTime(1600);
+
+    // Assert
+    expect(sync.position.value).toBeGreaterThan(held);
+    expect(sync.isStalled.value).toBe(false);
+  });
+
+  it("should take the clock back to the frame a stalled player stopped on", async () => {
+    // Arrange
+    const a = makeVod("a", T0, HOUR_S);
+    const aId = addVod(a).id;
+    const videoA = register(aId, a);
+    await nextTick();
+    vi.advanceTimersByTime(1000);
+    const frozenAt = videoA.currentTime;
+
+    // Act (the video freezes; the clock runs on through the grace period, then holds)
+    videoA.readyState = 2;
+    videoA.buffered = bufferedFor(videoA, 0);
+    vi.advanceTimersByTime(800);
+
+    // Assert
+    expect(sync.isHolding(aId)).toBe(true);
+    expect(sync.position.value).toBeCloseTo(T0 + frozenAt * 1000, -1);
+    expect(videoA.currentTime).toBeCloseTo(frozenAt, 1);
+  });
+
+  it("should keep the clock where a lone failed VOD stopped", async () => {
+    // Arrange
+    const a = makeVod("a", T0, HOUR_S);
+    const aId = addVod(a).id;
+    register(aId, a);
+    await nextTick();
+    vi.advanceTimersByTime(1000);
+
+    // Act
+    sync.updatePlayer(aId, { status: "error" });
+    vi.advanceTimersByTime(200);
+    const failedAt = sync.position.value;
+    vi.advanceTimersByTime(60_000);
+
+    // Assert
+    expect(sync.position.value).toBe(failedAt);
+  });
+
+  it("should re-anchor on a reloading VOD's last frame when the other one leaves", () => {
+    // Arrange
+    const { aId, bId, a, b } = addTwoVods();
+    register(aId, a);
+    register(bId, b);
+    sync.setSyncEnabled(false);
+    sync.updatePlayer(aId, { status: "loading", resumeS: 3000 });
+
+    // Act
+    sync.unregisterPlayer(bId);
+    mockStreamsRef.value = mockStreamsRef.value.filter((s) => s.id !== bId);
+
+    // Assert
+    expect(sync.position.value).toBe(T0 + 3000_000);
+    expect(sync.initialMediaTime(aId)).toBe(3000);
+  });
+
+  it("should let a player the engine paused carry on when sync turns off", async () => {
+    // Arrange
+    const a = makeVod("a", T0, HOUR_S);
+    const aId = addVod(a).id;
+    const videoA = register(aId, a);
+    await nextTick();
+    videoA.readyState = 2;
+    videoA.buffered = bufferedFor(videoA, 0);
+    vi.advanceTimersByTime(800);
+    expect(videoA.paused).toBe(true);
+    sync.setSyncEnabled(false);
+    videoA.readyState = 4;
+
+    // Act (a second VOD arrives, so the switch now applies)
+    addVod(makeVod("b", T0 + 1800_000, HOUR_S));
+
+    // Assert
+    expect(sync.syncActive.value).toBe(false);
+    expect(videoA.paused).toBe(false);
+  });
+
+  it("should keep a lone VOD on the clock even with sync switched off", () => {
+    // Arrange
+    const a = makeVod("a", T0, HOUR_S);
+    const aId = addVod(a).id;
+    register(aId, a);
+    sync.setSyncEnabled(false);
+    const start = sync.position.value;
+
+    // Act
+    const skipped = sync.skip(30);
+
+    // Assert
+    expect(sync.syncActive.value).toBe(true);
+    expect(skipped).toBe(true);
+    expect(sync.position.value).toBe(start + 30_000);
+    expect(sync.initialMediaTime(aId)).toBe((start + 30_000 - T0) / 1000);
+  });
+
+  it("should take over the remaining VOD's moment when sync is off and the other leaves", () => {
+    // Arrange
+    const { aId, bId, a, b } = addTwoVods();
+    const videoA = register(aId, a);
+    register(bId, b);
+    sync.setSyncEnabled(false);
+    videoA.currentTime = 2500;
+
+    // Act
+    sync.unregisterPlayer(bId);
+    mockStreamsRef.value = mockStreamsRef.value.filter((s) => s.id !== bId);
+
+    // Assert
+    expect(sync.syncActive.value).toBe(true);
+    expect(sync.position.value).toBe(T0 + 2500_000);
+    expect(videoA.currentTime).toBe(2500);
+  });
+
+  it("should let each VOD play on its own when a second one arrives with sync off", () => {
+    // Arrange
+    const a = makeVod("a", T0, HOUR_S);
+    const aId = addVod(a).id;
+    const videoA = register(aId, a);
+    sync.setSyncEnabled(false);
+    sync.setSpeed(2);
+
+    // Act
+    const b = makeVod("b", T0 + 1800_000, HOUR_S);
+    const bId = addVod(b).id;
+
+    // Assert
+    expect(sync.syncActive.value).toBe(false);
+    expect(videoA.playbackRate).toBe(1);
+    expect(sync.initialMediaTime(bId)).toBeNull();
+  });
+
+  it("should restart a reloading player where the clock is, using its playlist start", () => {
+    // Arrange
+    const { aId, bId, a, b } = addTwoVods();
+    register(aId, a);
+    register(bId, b);
+    // the playlist's program date-time put media t=0 two seconds after the API's start time
+    sync.updatePlayer(aId, { startMs: T0 + 2000 });
+    sync.seek(T0 + 2000_000);
+
+    // Act
+    sync.updatePlayer(aId, { status: "loading" });
+    const resumeAt = sync.initialMediaTime(aId);
+
+    // Assert
+    expect(resumeAt).toBe(1998);
   });
 
   it("should park a VOD that has not started yet at the current moment", () => {

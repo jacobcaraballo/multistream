@@ -8,7 +8,7 @@ const sync = vi.hoisted(() => ({
     vodStreams: { value: unknown[] };
     players: Record<string, { isRecording: boolean; endS: number }>;
     phases: Record<string, string>;
-    syncEnabled: { value: boolean };
+    syncActive: { value: boolean };
     times: Record<string, number | null>;
   },
 }));
@@ -20,7 +20,7 @@ vi.mock("../useVodSync", () => ({
     vodStreams: sync.state!.vodStreams,
     players: sync.state!.players,
     phases: sync.state!.phases,
-    syncEnabled: sync.state!.syncEnabled,
+    syncActive: sync.state!.syncActive,
     mediaTimeOf: (id: string) => sync.state!.times[id] ?? null,
   }),
 }));
@@ -77,7 +77,7 @@ describe("useVodChatReplay", () => {
       vodStreams: ref<unknown[]>([]),
       players: reactive({}),
       phases: reactive({}),
-      syncEnabled: ref(true),
+      syncActive: ref(true),
       times: {},
     };
     scope = effectScope();

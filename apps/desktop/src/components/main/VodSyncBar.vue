@@ -245,7 +245,7 @@ function onTrackKeydown(e: KeyboardEvent) {
 
 <template>
   <section
-    v-if="vodStreams.length"
+    v-if="vodStreams.length > 1"
     data-testid="vod-sync-bar"
     class="shrink-0 bg-[#14161a] border-t border-[#2a2d33] px-3 py-2 text-white select-none"
     :aria-label="t('vods.sync.label')"

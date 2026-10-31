@@ -4,5 +4,6 @@ pub mod error;
 pub mod kick;
 pub mod previews;
 pub mod proxy;
+pub mod stream_proxy;
 pub mod twitch;
 pub mod types;

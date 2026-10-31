@@ -6,6 +6,7 @@ import {
   classifyPhase,
   clampPosition,
   anyRangesOverlap,
+  bufferedAheadS,
   computeTimeline,
   isHoldingClock,
   latestPlayablePosition,
@@ -240,5 +241,31 @@ describe("nextPlaybackSpeed", () => {
     // Act / Assert
     expect(nextPlaybackSpeed(1.1, 1)).toBe(1.25);
     expect(nextPlaybackSpeed(1.1, -1)).toBe(1);
+  });
+});
+
+describe("bufferedAheadS", () => {
+  const ranges = (...spans: [number, number][]) => ({
+    length: spans.length,
+    start: (i: number) => spans[i]![0],
+    end: (i: number) => spans[i]![1],
+  });
+
+  it("should measure the buffered run that contains the moment", () => {
+    // Act / Assert
+    expect(bufferedAheadS(ranges([0, 10], [20, 50]), 25)).toBe(25);
+    expect(bufferedAheadS(ranges([0, 10]), 4)).toBe(6);
+  });
+
+  it("should report nothing for a moment in a gap or past the end", () => {
+    // Act / Assert
+    expect(bufferedAheadS(ranges([0, 10], [20, 50]), 15)).toBe(0);
+    expect(bufferedAheadS(ranges([0, 10]), 10)).toBe(0);
+    expect(bufferedAheadS(ranges(), 0)).toBe(0);
+  });
+
+  it("should count a range that starts a frame after the moment", () => {
+    // Act / Assert
+    expect(bufferedAheadS(ranges([30.05, 40]), 30)).toBeCloseTo(10);
   });
 });

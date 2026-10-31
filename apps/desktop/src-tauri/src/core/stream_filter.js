@@ -182,12 +182,12 @@ if (window.location.hostname.includes("twitch.tv") || window.location.origin.inc
         scope.ClientIntegrityHeader = null;
         scope.AuthorizationHeader = undefined;
         scope.SimulatedAdsDepth = 0;
-        scope.PlayerBufferingFix = false; // Diagnostic: disable buffering fix to see if hover pause still happens
+        scope.PlayerBufferingFix = true; // nudges a live player that sits on an unchanged buffer (upstream default)
         scope.PlayerBufferingDelay = 600;
-        scope.PlayerBufferingSameStateCount = 6;
+        scope.PlayerBufferingSameStateCount = 3;
         scope.PlayerBufferingDangerZone = 1;
         scope.PlayerBufferingDoPlayerReload = false; // Back to pause/play to avoid autoplay policy
-        scope.PlayerBufferingMinRepeatDelay = 20000;
+        scope.PlayerBufferingMinRepeatDelay = 8000;
         scope.PlayerBufferingPrerollCheckEnabled = false;// Enable this if you're getting an immediate pause/play/reload as you open a stream (which is causing the stream to take longer to load). One problem with this being true is that it can cause the player to get stuck in some instances requiring the user to press pause/play
         scope.PlayerBufferingPrerollCheckOffset = 5;// How far the stream need to move before doing the buffering mitigation (depends on PlayerBufferingPrerollCheckEnabled being true)
         scope.V2API = false;
@@ -1259,7 +1259,9 @@ if (streamInfo.ActiveBackupPlayerType != backupPlayerType) {
             hookWindowWorker();
             hookFetch();
         }
-    if (PlayerBufferingFix) {
+    // the options only exist when the ad-block declared them; reading one otherwise throws and
+    // skipped onContentLoaded below
+    if (!isAdblockDisabled && PlayerBufferingFix) {
         monitorPlayerBuffering();
     }
     if (document.readyState === "complete" || document.readyState === "loaded" || document.readyState === "interactive") {

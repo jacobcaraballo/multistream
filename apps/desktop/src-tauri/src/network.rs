@@ -6,6 +6,21 @@ use tauri::{AppHandle, Emitter};
 
 pub static IS_ONLINE: AtomicBool = AtomicBool::new(true);
 
+// one failed round can just be a saturated link (several streams buffering at once); going
+// offline reloads every stream, so it takes this many failed rounds in a row
+const OFFLINE_AFTER_FAILURES: u32 = 2;
+
+/// Next reported status: back online after one good check, offline only after
+/// `OFFLINE_AFTER_FAILURES` bad checks in a row.
+fn next_status(reported: bool, check_ok: bool, failures: &mut u32) -> bool {
+    if check_ok {
+        *failures = 0;
+        return true;
+    }
+    *failures += 1;
+    reported && *failures < OFFLINE_AFTER_FAILURES
+}
+
 static HTTP_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
 
 fn get_http_client() -> &'static reqwest::Client {
@@ -88,9 +103,11 @@ pub fn start_network_monitor(app_handle: AppHandle) {
         // First tick finishes immediately
         interval.tick().await;
 
+        let mut failures = 0;
         loop {
             interval.tick().await;
-            let current_status = check_connectivity().await;
+            let current_status =
+                next_status(last_status, check_connectivity().await, &mut failures);
             IS_ONLINE.store(current_status, Ordering::Relaxed);
 
             if current_status != last_status {
@@ -104,6 +121,47 @@ pub fn start_network_monitor(app_handle: AppHandle) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn should_stay_online_through_a_single_failed_check() {
+        // Arrange
+        let mut failures = 0;
+
+        // Act
+        let first = next_status(true, false, &mut failures);
+        let second = next_status(first, false, &mut failures);
+
+        // Assert
+        assert!(first);
+        assert!(!second);
+    }
+
+    #[test]
+    fn should_come_back_online_after_one_good_check() {
+        // Arrange
+        let mut failures = 5;
+
+        // Act
+        let status = next_status(false, true, &mut failures);
+
+        // Assert
+        assert!(status);
+        assert_eq!(failures, 0);
+    }
+
+    #[test]
+    fn should_forget_an_isolated_failure_once_a_check_succeeds() {
+        // Arrange
+        let mut failures = 0;
+        next_status(true, false, &mut failures);
+        next_status(true, true, &mut failures);
+
+        // Act
+        let status = next_status(true, false, &mut failures);
+
+        // Assert
+        assert!(status);
+    }
 
     #[tokio::test]
     async fn test_check_connectivity_does_not_panic() {

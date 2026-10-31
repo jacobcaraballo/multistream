@@ -121,6 +121,18 @@ export function isHoldingClock(
   return !atFinishedEnd;
 }
 
+/** Seconds of media buffered contiguously from `t` (0 when `t` isn't buffered). */
+export function bufferedAheadS(
+  buffered: Pick<TimeRanges, "length" | "start" | "end">,
+  t: number
+): number {
+  for (let i = 0; i < buffered.length; i++) {
+    // a frame-sized gap at the head of a range doesn't stop playback
+    if (buffered.start(i) <= t + 0.1 && buffered.end(i) > t) return buffered.end(i) - t;
+  }
+  return 0;
+}
+
 export function computeTimeline(ranges: VodRange[]): Timeline | null {
   if (!ranges.length) return null;
 

@@ -5,6 +5,8 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { isTauri } from "@/lib/http";
 
 const RECONNECT_DEBOUNCE_MS = 1200;
+// a failed desktop probe is re-checked once before going offline (a busy link can drop one)
+const PROBE_RECHECK_MS = 1500;
 const ONLINE_PROBE_INTERVAL_MS = 4000;
 const OFFLINE_PROBE_INTERVAL_MS = 2000;
 
@@ -61,6 +63,11 @@ export async function probeConnectivity(): Promise<boolean> {
   }
 }
 
+export interface ReconnectInfo {
+  /** How long the connection was down. */
+  offlineMs: number;
+}
+
 export function _useNetworkStatus() {
   const isOnline = ref(
     typeof navigator !== "undefined" && typeof navigator.onLine === "boolean"
@@ -69,7 +76,8 @@ export function _useNetworkStatus() {
   );
   const wasOffline = ref(false);
   const reconnectCount = ref(0);
-  const reconnectCallbacks = new Set<() => void>();
+  const reconnectCallbacks = new Set<(info: ReconnectInfo) => void>();
+  let offlineSince = 0;
 
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
   let probeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -94,9 +102,11 @@ export function _useNetworkStatus() {
       if (wasOffline.value) {
         wasOffline.value = false;
         reconnectCount.value++;
+        const info = { offlineMs: offlineSince ? Date.now() - offlineSince : 0 };
+        offlineSince = 0;
         reconnectCallbacks.forEach((cb) => {
           try {
-            cb();
+            cb(info);
           } catch (err) {
             console.error("[useNetworkStatus] Reconnect callback error:", err);
           }
@@ -111,6 +121,7 @@ export function _useNetworkStatus() {
       clearTimeout(debounceTimer);
       debounceTimer = null;
     }
+    if (!wasOffline.value) offlineSince = Date.now();
     isOnline.value = false;
     wasOffline.value = true;
   };
@@ -120,7 +131,11 @@ export function _useNetworkStatus() {
     isProbing = true;
     const generation = connectivityGeneration;
     try {
-      const online = await probeConnectivity();
+      let online = await probeConnectivity();
+      if (!online && isOnline.value && isTauri()) {
+        await new Promise((resolve) => setTimeout(resolve, PROBE_RECHECK_MS));
+        online = await probeConnectivity();
+      }
       if (generation !== connectivityGeneration || isDisposed) {
         return isOnline.value;
       }
@@ -216,7 +231,7 @@ export function _useNetworkStatus() {
     onScopeDispose(cleanup);
   }
 
-  function onReconnect(callback: () => void): () => void {
+  function onReconnect(callback: (info: ReconnectInfo) => void): () => void {
     reconnectCallbacks.add(callback);
     const off = () => {
       reconnectCallbacks.delete(callback);

@@ -5,6 +5,7 @@ import type { Vod } from "@/lib/vod";
 import {
   LIVE_EDGE_BUFFER_MS,
   PAUSED_TOLERANCE_S,
+  bufferedAheadS,
   classifyPhase,
   clampPosition,
   computeTimeline,
@@ -28,6 +29,8 @@ export interface VodPlayerState {
   /** Newest playable media second. */
   endS: number;
   isRecording: boolean;
+  /** Last frame shown before a reload or error, for re-anchoring the clock without a ready video. */
+  resumeS?: number;
 }
 
 export type VodStream = Stream & { vod: Vod };
@@ -35,6 +38,12 @@ export type VodStream = Stream & { vod: Vod };
 const TICK_MS = 200;
 const PERSIST_EVERY_MS = 2000;
 const OFFSET_STEP_S = 0.5;
+// a tile only holds the group once it has starved this long, so a brief dip doesn't stop everyone
+const HOLD_AFTER_MS = 500;
+// and the group resumes only once every holding tile has this much buffered past its target
+const RESUME_BUFFER_S = 2;
+// or has been able to play this long: a target inside a buffer gap never gets a cushion
+const RESUME_ANYWAY_MS = 3000;
 
 const setRate = (video: HTMLVideoElement, rate: number) => {
   if (Math.abs(video.playbackRate - rate) > 0.001) video.playbackRate = rate;
@@ -59,6 +68,13 @@ const _useVodSync = () => {
   const players = reactive<Record<string, VodPlayerState>>({});
   const phases = reactive<Record<string, VodPhase>>({});
   const videos = new Map<string, HTMLVideoElement>();
+  const starvingSince = new Map<string, number>();
+  // reactive so a tile can show it is waiting on the buffer while the clock holds for it
+  const holdingIds = reactive(new Set<string>());
+  // when a holding tile stopped starving
+  const playableSince = new Map<string, number>();
+  // where the clock goes back to when a hold starts, so the stalled frame isn't skipped
+  let rewindTo: number | null = null;
 
   const isPlaying = ref(true);
   const isStalled = ref(false);
@@ -89,6 +105,10 @@ const _useVodSync = () => {
   };
 
   const vodStreams = computed(() => streams.value.filter((s): s is VodStream => !!s.vod));
+
+  // a lone VOD always follows the clock: there's nothing to drift from, and the clock is what
+  // remembers its position across reloads and restarts. "Sync off" only splits up several VODs.
+  const syncActive = computed(() => syncEnabled.value || vodStreams.value.length < 2);
 
   const offsetOf = (id: string) => offsets.value[id] ?? 0;
 
@@ -125,6 +145,57 @@ const _useVodSync = () => {
     isStalled.value = false;
   };
 
+  const forgetHold = (id: string) => {
+    starvingSince.delete(id);
+    holdingIds.delete(id);
+    playableSince.delete(id);
+  };
+
+  /** Whether an active player keeps the shared clock stopped right now. */
+  const holdsClock = (
+    id: string,
+    video: HTMLVideoElement,
+    target: number,
+    state: VodPlayerState
+  ) => {
+    const starving = isHoldingClock(
+      video.seeking,
+      video.readyState,
+      target,
+      state.endS,
+      state.isRecording
+    );
+    const now = performance.now();
+    if (holdingIds.has(id)) {
+      if (starving) {
+        playableSince.delete(id);
+        return true;
+      }
+      const since = playableSince.get(id) ?? now;
+      playableSince.set(id, since);
+      // near the end there's less than the cushion left to buffer
+      const needed = Math.min(RESUME_BUFFER_S, Math.max(0, state.endS - target - 0.5));
+      const cushioned = bufferedAheadS(video.buffered, target) >= needed;
+      if (!cushioned && now - since < RESUME_ANYWAY_MS) return true;
+      forgetHold(id);
+      return false;
+    }
+    if (!starving) {
+      starvingSince.delete(id);
+      return false;
+    }
+    const since = starvingSince.get(id) ?? now;
+    starvingSince.set(id, since);
+    if (!video.seeking && now - since < HOLD_AFTER_MS) return false;
+    holdingIds.add(id);
+    // the clock ran on during the grace period; take it back to the frame the tile stopped on
+    if (!video.seeking) {
+      const frame = positionForMediaTime(video.currentTime, state.startMs, offsetOf(id));
+      rewindTo = rewindTo === null ? frame : Math.min(rewindTo, frame);
+    }
+    return true;
+  };
+
   const drivePlayers = (list: VodStream[], pos: number) => {
     for (const s of list) {
       const video = videos.get(s.id);
@@ -153,6 +224,7 @@ const _useVodSync = () => {
   const tick = () => {
     const list = vodStreams.value;
     if (!list.length) return;
+    rewindTo = null;
 
     const nextRanges = list.map(rangeFor);
     const nextTimeline = computeTimeline(nextRanges);
@@ -166,7 +238,7 @@ const _useVodSync = () => {
       initialized = true;
     }
 
-    if (!syncEnabled.value) {
+    if (!syncActive.value) {
       applyIndependentPhases(list);
       return;
     }
@@ -195,13 +267,17 @@ const _useVodSync = () => {
 
       if (phase === "loading") holding = true;
       const video = videos.get(s.id);
-      if (
-        phase === "active" &&
-        video &&
-        isHoldingClock(video.seeking, video.readyState, target, state.endS, state.isRecording)
-      ) {
-        holding = true;
+      if (phase === "active" && video) {
+        if (holdsClock(s.id, video, target, state)) holding = true;
+      } else {
+        forgetHold(s.id);
       }
+    }
+    // nothing can play (a lone VOD failed): keep the clock where it stopped for Retry
+    if (list.every((s) => phases[s.id] === "error")) holding = true;
+    if (rewindTo !== null && rewindTo < pos) {
+      pos = rewindTo;
+      setClock(pos, false);
     }
 
     const shouldRun = isPlaying.value && !holding;
@@ -266,8 +342,11 @@ const _useVodSync = () => {
     if (player) Object.assign(player, patch);
   };
 
+  const isHolding = (id: string) => holdingIds.has(id);
+
   const unregisterPlayer = (id: string) => {
     videos.delete(id);
+    forgetHold(id);
     delete players[id];
     delete phases[id];
   };
@@ -278,12 +357,17 @@ const _useVodSync = () => {
     return video && players[id]?.status === "ready" ? video.currentTime : null;
   };
 
-  /** Media second a freshly loaded player should start buffering from. */
-  const initialMediaTime = (id: string): number => {
+  /**
+   * Media second a (re)loading player should start buffering from, or null when it plays on
+   * its own and should pick its own spot. A reload keeps the playlist's start time from the
+   * previous load, so it resumes on the exact frame the clock is on.
+   */
+  const initialMediaTime = (id: string): number | null => {
     const stream = findStream(id);
-    if (!stream || !syncEnabled.value) return 0;
+    if (!stream || !syncActive.value) return null;
     if (!initialized) tick();
-    return Math.max(0, mediaTarget(clockNow(), stream.vod.startedAt, offsetOf(id)));
+    const startMs = players[id]?.startMs ?? stream.vod.startedAt;
+    return Math.max(0, mediaTarget(clockNow(), startMs, offsetOf(id)));
   };
 
   const seek = (positionMs: number) => {
@@ -327,7 +411,7 @@ const _useVodSync = () => {
    */
   const skip = (deltaS: number, targetId?: string | null): boolean => {
     if (!vodStreams.value.length) return false;
-    if (syncEnabled.value) {
+    if (syncActive.value) {
       seekBy(deltaS);
       return true;
     }
@@ -373,34 +457,57 @@ const _useVodSync = () => {
     tick();
   };
 
-  const setSyncEnabled = (enabled: boolean) => {
-    if (enabled === syncEnabled.value) return;
-
-    if (enabled) {
-      // adopt the moment the first loaded VOD is showing, so turning sync on doesn't jump
-      const anchor = vodStreams.value.find(
-        (s) => videos.has(s.id) && players[s.id]?.status === "ready"
-      );
-      const video = anchor && videos.get(anchor.id);
-      const state = anchor && players[anchor.id];
-      if (anchor && video && state) {
-        setClock(
-          positionForMediaTime(video.currentTime, state.startMs, offsetOf(anchor.id)),
-          false
-        );
-        isPlaying.value = !video.paused;
-      }
-    } else {
-      videos.forEach((video) => (video.playbackRate = 1));
+  // adopt the moment the first loaded VOD is showing, so the clock taking over doesn't jump
+  const adoptAnchor = () => {
+    const anchor = vodStreams.value.find(
+      (s) => videos.has(s.id) && players[s.id]?.status === "ready"
+    );
+    const video = anchor && videos.get(anchor.id);
+    const state = anchor && players[anchor.id];
+    if (anchor && video && state) {
+      setClock(positionForMediaTime(video.currentTime, state.startMs, offsetOf(anchor.id)), false);
+      isPlaying.value = !video.paused;
+      return;
     }
+    // nobody is ready (reloading or failed): use the last frame a player reported
+    const reloading = vodStreams.value.find((s) => players[s.id]?.resumeS !== undefined);
+    const last = reloading && players[reloading.id];
+    if (reloading && last?.resumeS !== undefined) {
+      setClock(positionForMediaTime(last.resumeS, last.startMs, offsetOf(reloading.id)), false);
+    }
+  };
 
+  // runs both for the switch and for a second VOD arriving (or leaving) while the switch is off
+  watch(
+    syncActive,
+    (active) => {
+      if (active) {
+        adoptAnchor();
+      } else {
+        videos.forEach((video, id) => {
+          video.playbackRate = 1;
+          // players the engine paused for a buffering hold carry on by themselves
+          if (isPlaying.value && phases[id] === "active" && video.paused) {
+            video.play().catch(() => {});
+          }
+        });
+      }
+      starvingSince.clear();
+      holdingIds.clear();
+      playableSince.clear();
+      tick();
+    },
+    { flush: "sync" }
+  );
+
+  const setSyncEnabled = (enabled: boolean) => {
     syncEnabled.value = enabled;
-    tick();
   };
 
   return {
     vodStreams,
     syncEnabled,
+    syncActive,
     offsets,
     phases,
     players,
@@ -416,6 +523,7 @@ const _useVodSync = () => {
     unregisterPlayer,
     initialMediaTime,
     mediaTimeOf,
+    isHolding,
     seek,
     seekBy,
     seekPlayer,

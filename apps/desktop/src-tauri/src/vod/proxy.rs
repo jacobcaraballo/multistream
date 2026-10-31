@@ -5,6 +5,8 @@
 //! URLs are path-encoded (`msvod://localhost/<host>/<path>`) rather than query-encoded so
 //! that relative segment URIs inside variant playlists resolve back through the proxy.
 //! Only hosts that appeared in a playlist returned by Twitch's usher are relayed.
+//! Playlists point at the streaming relay (`stream_proxy`) when it is running; this scheme is
+//! the fallback.
 
 use std::collections::HashSet;
 use std::sync::{Mutex, OnceLock};
@@ -29,7 +31,7 @@ fn is_valid_host(host: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-')
 }
 
-fn is_allowed(host: &str) -> bool {
+pub(crate) fn is_allowed(host: &str) -> bool {
     allowed_hosts()
         .lock()
         .map(|hosts| hosts.contains(host))
@@ -37,6 +39,10 @@ fn is_allowed(host: &str) -> bool {
 }
 
 fn proxy_base() -> &'static str {
+    // the streaming relay when it's up; the scheme only answers once a whole segment arrived
+    if let Some(base) = super::stream_proxy::base_url() {
+        return base;
+    }
     // WebView2 and Android expose custom schemes as http://<scheme>.localhost
     if cfg!(any(windows, target_os = "android")) {
         "http://msvod.localhost/"

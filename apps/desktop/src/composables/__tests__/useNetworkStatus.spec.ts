@@ -63,6 +63,25 @@ describe("useNetworkStatus composable", () => {
     expect(reconnectCallback).toHaveBeenCalledTimes(1);
   });
 
+  it("should tell reconnect callbacks how long the connection was down", () => {
+    // Arrange
+    const network = _useNetworkStatus();
+    const reconnectCallback = vi.fn();
+    network.onReconnect(reconnectCallback);
+    network.__test_triggerOffline();
+    vi.advanceTimersByTime(5000);
+    // a second offline report during the same outage must not restart the count
+    network.__test_triggerOffline();
+    vi.advanceTimersByTime(5000);
+
+    // Act
+    network.__test_triggerOnline();
+    vi.advanceTimersByTime(1200);
+
+    // Assert
+    expect(reconnectCallback).toHaveBeenCalledWith({ offlineMs: 11_200 });
+  });
+
   it("should cancel online debounce if offline event occurs before timer finishes", () => {
     // Arrange
     const network = _useNetworkStatus();
