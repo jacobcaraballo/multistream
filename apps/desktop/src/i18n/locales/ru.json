@@ -376,7 +376,6 @@
   },
   "toasts": {
     "add": {
-      "added": "добавлено",
       "alreadyAdded": "Трансляция уже добавлена",
       "maxStreams": "Достигнут лимит в 12 трансляций"
     },
@@ -598,7 +597,6 @@
       "activeCount": "{active} из {total} записей в этот момент"
     },
     "toasts": {
-      "added": "Запись {name} добавлена",
       "alreadyAdded": "Эта запись уже в сетке"
     },
     "speed": {

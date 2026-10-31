@@ -951,7 +951,6 @@ const _useLiveStatus = () => {
                   fav.platform === "youtube" && status?.videoId ? status.videoId : fav.channel;
                 toast.info(t("notifications.welcome"), {
                   description: t("notifications.welcomeBodySingle", { channel: fav.channel }),
-                  position: "bottom-left",
                   duration: 10000,
                   action: {
                     label: t("notifications.actionWatch"),
@@ -982,13 +981,11 @@ const _useLiveStatus = () => {
                       channels: names,
                       count: remainingCount,
                     }),
-                    position: "bottom-left",
                     duration: 10000,
                   });
                 } else {
                   toast.info(t("notifications.welcome"), {
                     description: t("notifications.welcomeBody", { channels: names }),
-                    position: "bottom-left",
                     duration: 10000,
                   });
                 }

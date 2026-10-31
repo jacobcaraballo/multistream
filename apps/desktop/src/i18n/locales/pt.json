@@ -376,7 +376,6 @@
   },
   "toasts": {
     "add": {
-      "added": "adicionado",
       "alreadyAdded": "Stream já adicionado",
       "maxStreams": "Limite máximo de 12 streams atingido"
     },
@@ -598,7 +597,6 @@
       "activeCount": "{active} de {total} VODs neste momento"
     },
     "toasts": {
-      "added": "VOD de {name} adicionado",
       "alreadyAdded": "Este VOD já está na grade"
     },
     "speed": {

@@ -376,7 +376,6 @@
   },
   "toasts": {
     "add": {
-      "added": "hinzugefügt",
       "alreadyAdded": "Stream bereits hinzugefügt",
       "maxStreams": "Maximale Anzahl von 12 Streams erreicht"
     },
@@ -598,7 +597,6 @@
       "activeCount": "{active} von {total} VODs zu diesem Zeitpunkt"
     },
     "toasts": {
-      "added": "VOD von {name} hinzugefügt",
       "alreadyAdded": "Dieses VOD ist bereits im Raster"
     },
     "speed": {

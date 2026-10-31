@@ -376,7 +376,6 @@
   },
   "toasts": {
     "add": {
-      "added": "जोड़ा गया",
       "alreadyAdded": "स्ट्रीम पहले ही जुड़ चुकी है",
       "maxStreams": "अधिकतम 12 स्ट्रीम पूरी हो गईं"
     },
@@ -598,7 +597,6 @@
       "activeCount": "इस समय {total} में से {active} VOD"
     },
     "toasts": {
-      "added": "{name} का VOD जोड़ा गया",
       "alreadyAdded": "यह VOD पहले से ग्रिड में है"
     },
     "speed": {

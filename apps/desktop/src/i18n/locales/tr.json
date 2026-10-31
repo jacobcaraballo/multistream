@@ -376,7 +376,6 @@
   },
   "toasts": {
     "add": {
-      "added": "eklendi",
       "alreadyAdded": "Yayın zaten eklendi",
       "maxStreams": "Maksimum 12 yayına ulaşıldı"
     },
@@ -598,7 +597,6 @@
       "activeCount": "Bu anda {total} VOD'dan {active} tanesi"
     },
     "toasts": {
-      "added": "{name} VOD'u eklendi",
       "alreadyAdded": "Bu VOD zaten ızgarada"
     },
     "speed": {

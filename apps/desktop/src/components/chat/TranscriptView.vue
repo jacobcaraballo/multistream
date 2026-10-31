@@ -118,7 +118,7 @@ function getLanguageDisplayName(code?: string): string {
 async function copySingleEntry(entry: { text: string; timestamp: number; endTimestamp?: number }) {
   try {
     await navigator.clipboard.writeText(`[${formatEntryRange(entry)}] ${entry.text}`);
-    toast.success(t("chat.transcript.copied"), { position: "bottom-right" });
+    toast.success(t("chat.transcript.copied"));
   } catch (err) {
     console.error("Failed to copy transcript entry", err);
   }
@@ -133,7 +133,7 @@ async function copyTranscript() {
 
   try {
     await navigator.clipboard.writeText(text);
-    toast.success(t("chat.transcript.copied"), { position: "bottom-right" });
+    toast.success(t("chat.transcript.copied"));
   } catch (err) {
     console.error("Failed to copy transcript", err);
   }

@@ -376,7 +376,6 @@
   },
   "toasts": {
     "add": {
-      "added": "ajouté",
       "alreadyAdded": "Le flux est déjà ajouté",
       "maxStreams": "Maximum de 12 flux atteint"
     },
@@ -598,7 +597,6 @@
       "activeCount": "{active} VODs sur {total} à cet instant"
     },
     "toasts": {
-      "added": "VOD de {name} ajouté",
       "alreadyAdded": "Ce VOD est déjà dans la grille"
     },
     "speed": {

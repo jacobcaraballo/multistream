@@ -376,7 +376,6 @@
   },
   "toasts": {
     "add": {
-      "added": "ditambahkan",
       "alreadyAdded": "Stream sudah ditambahkan",
       "maxStreams": "Maksimal 12 stream tercapai"
     },
@@ -598,7 +597,6 @@
       "activeCount": "{active} dari {total} VOD pada saat ini"
     },
     "toasts": {
-      "added": "VOD {name} ditambahkan",
       "alreadyAdded": "VOD ini sudah ada di grid"
     },
     "speed": {

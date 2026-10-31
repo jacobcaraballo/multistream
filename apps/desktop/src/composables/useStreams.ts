@@ -142,8 +142,8 @@ const _useStreams = () => {
    * @brief Add a stream
    *
    * Checks if the stream is already added, showing a warning toast if so.
-   * Otherwise, the new entry is appended to the bottom of the list,
-   * a success toast is displayed, and it is added to the recent channels list.
+   * Otherwise, the new entry is appended to the bottom of the list and added to the recent
+   * channels list.
    *
    * @param channel The channel name
    * @param platform The platform
@@ -186,8 +186,6 @@ const _useStreams = () => {
 
     now.value = Date.now();
 
-    const streamName = displayName || cleanHandle || channel;
-    toast.success(`${streamName} ${t("toasts.add.added")}`);
     addRecent(channel, platform, iframeUrl, displayName, cleanHandle);
   };
 
@@ -225,7 +223,6 @@ const _useStreams = () => {
     ];
 
     now.value = Date.now();
-    toast.success(t("vods.toasts.added", { name: vod.displayName || vod.channel }));
     return true;
   };
 

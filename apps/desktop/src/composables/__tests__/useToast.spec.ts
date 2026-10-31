@@ -17,6 +17,18 @@ describe("useToast composable unit tests", () => {
     expect(toasts.value.length).toBe(0);
   });
 
+  it("should place toasts at the top right unless a position is given", () => {
+    // Arrange
+    const { toasts } = useToast();
+
+    // Act
+    toast.info("Default");
+    toast.info("Placed", { position: "bottom-left" });
+
+    // Assert
+    expect(toasts.value.map((t) => t.position)).toEqual(["top-right", "bottom-left"]);
+  });
+
   it("should add a string toast and remove it via dismiss (Dynamic Transition)", () => {
     // Arrange
     const { toasts, dismiss } = useToast();

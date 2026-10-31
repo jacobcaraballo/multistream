@@ -376,7 +376,6 @@
   },
   "toasts": {
     "add": {
-      "added": "已添加",
       "alreadyAdded": "直播已添加",
       "maxStreams": "已达到 12 个流的最大限制"
     },
@@ -598,7 +597,6 @@
       "activeCount": "此刻 {total} 个录像中有 {active} 个"
     },
     "toasts": {
-      "added": "已添加 {name} 的录像",
       "alreadyAdded": "此录像已在网格中"
     },
     "speed": {

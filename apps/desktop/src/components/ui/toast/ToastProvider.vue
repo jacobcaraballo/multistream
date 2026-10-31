@@ -31,7 +31,7 @@ const toastsByPosition = computed(() => {
 function getPositionClasses(pos: ToastPosition) {
   const classes = ["fixed", "z-[9999]", "flex", "flex-col", "gap-2", "pointer-events-none", "w-89"];
 
-  if (pos.includes("top")) classes.push("top-4");
+  if (pos.includes("top")) classes.push("top-4", "toast-stack-top");
   if (pos.includes("bottom")) classes.push("bottom-4");
 
   if (pos.includes("left")) classes.push("left-4", "items-start");
@@ -64,6 +64,10 @@ function getPositionClasses(pos: ToastPosition) {
 .toast-enter-to {
   opacity: 1;
   transform: translateY(0) scale(1);
+}
+/* stacks pinned to the top slide down into place */
+.toast-stack-top .toast-enter-from {
+  transform: translateY(-0.5rem) scale(0.95);
 }
 
 /* Leave animations: smooth collapse without absolute jumping */

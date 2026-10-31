@@ -74,6 +74,7 @@ describe("useStreams composable unit tests", () => {
     expect(streams?.value[0]?.channel).toBe("gaules");
     expect(streams?.value[0]?.platform).toBe("twitch");
     expect(streams?.value[0]?.id).toBeDefined();
+    expect(toast.success).not.toHaveBeenCalled();
   });
 
   it("should store displayName when provided to addStream", () => {
@@ -471,7 +472,7 @@ describe("useStreams VOD tiles", () => {
     expect(streams.value[0]?.channel).toBe("ibai");
     expect(streams.value[0]?.platform).toBe("twitch");
     expect(streams.value[0]?.vod?.id).toBe("2915065087");
-    expect(toast.success).toHaveBeenCalledWith("vods.toasts.added");
+    expect(toast.success).not.toHaveBeenCalled();
   });
 
   it("should reject the same VOD twice", () => {

@@ -125,7 +125,7 @@ onMounted(async () => {
           if (username.value) {
             const lastText = removeLastLocalMessage(channel, username.value);
             if (lastText) {
-              toast.error(message, { position: "bottom-right" });
+              toast.error(message);
               newMessage.value = lastText;
               if (!activeReply.value) {
                 activeReply.value = lastSentReply;

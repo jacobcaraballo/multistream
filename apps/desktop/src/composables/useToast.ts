@@ -58,7 +58,7 @@ function addToast(
   options?: ToastOptions
 ) {
   const id = options?.id || generateId();
-  const position = options?.position || "bottom-left";
+  const position = options?.position || "top-right";
 
   const existingIndex = activeToasts.value.findIndex((t) => t.id === id);
 

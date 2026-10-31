@@ -156,9 +156,7 @@ async function handleSend() {
     newMessage.value = "";
   } catch (error) {
     console.error("Failed to send message", error);
-    toast.error(typeof error === "string" ? error : t("chat.sendError"), {
-      position: "bottom-right",
-    });
+    toast.error(typeof error === "string" ? error : t("chat.sendError"));
   } finally {
     isSending.value = false;
   }
@@ -184,7 +182,7 @@ onMounted(async () => {
           if (username.value) {
             const lastText = removeLastLocalMessage(username.value);
             if (lastText) {
-              toast.error(message, { position: "bottom-right" });
+              toast.error(message);
               newMessage.value = lastText;
             }
           }
