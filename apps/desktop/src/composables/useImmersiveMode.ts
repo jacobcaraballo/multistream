@@ -78,6 +78,34 @@ const _useImmersiveMode = () => {
     }
   };
 
+  /**
+   * Put the window in or out of fullscreen without touching immersive mode (the PiP layout
+   * covers the panels itself). Returns false when the window couldn't change.
+   */
+  const setWindowFullscreen = async (on: boolean): Promise<boolean> => {
+    if (isTauri()) {
+      try {
+        const { getCurrentWindow } = await import("@tauri-apps/api/window");
+        await getCurrentWindow().setFullscreen(on);
+        isFullscreen.value = on;
+        return true;
+      } catch (err) {
+        console.warn("Failed to set Tauri window fullscreen:", err);
+        return false;
+      }
+    }
+    if (typeof document === "undefined") return false;
+    try {
+      if (on) await document.documentElement.requestFullscreen?.();
+      else if (document.fullscreenElement) await document.exitFullscreen?.();
+      isFullscreen.value = Boolean(document.fullscreenElement);
+      return isFullscreen.value === on;
+    } catch (err) {
+      console.warn("Failed to set browser fullscreen:", err);
+      return false;
+    }
+  };
+
   const toggleFullscreen = async () => {
     const nextState = !isFullscreen.value;
 
@@ -140,6 +168,7 @@ const _useImmersiveMode = () => {
     scheduleHideRightPanel,
     hideAllPanels,
     syncFullscreenState,
+    setWindowFullscreen,
     toggleFullscreen,
     toggleImmersiveMode,
     handleEscape,

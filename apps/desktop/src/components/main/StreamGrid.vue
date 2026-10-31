@@ -5,16 +5,20 @@ import YoutubeStream from "@/components/stream/YoutubeStream.vue";
 import CustomStream from "@/components/stream/CustomStream.vue";
 import VodStream from "@/components/stream/VodStream.vue";
 import TranscriptionOverlay from "./TranscriptionOverlay.vue";
+import PipWindowChrome from "./PipWindowChrome.vue";
 import { GripVertical } from "@lucide/vue";
 import { useDragAndDrop } from "@/composables/useDragAndDrop";
 import { useStreams, type Stream } from "@/composables/useStreams";
 import { useFocusedStream } from "@/composables/useFocusedStream";
+import { PIP_BAR_PX, useFullscreenLayout } from "@/composables/useFullscreenLayout";
+import { announceVolume } from "@/lib/wheelVolume";
 import { usePreferences } from "@/composables/usePreferences";
 import { computed, watch, nextTick, ref } from "vue";
 import { useEventListener } from "@vueuse/core";
 
 const { streams, gridClass, isLeaving, getStreamKey } = useStreams();
-const { focusedStreamId, isFocused, activateStream } = useFocusedStream();
+const { focusedStreamId, audioStreamId, isFocused } = useFocusedStream();
+const layout = useFullscreenLayout();
 const {
   draggingId,
   overId,
@@ -52,12 +56,32 @@ const streamIdForFrame = (source: MessageEvent["source"]): string | null => {
   return null;
 };
 
-// a click inside an embed (sent by the injected audio_focus.js) selects that tile
 useEventListener(window, "message", (e: MessageEvent) => {
-  if (e.data?.type !== "MULTISTREAM_FRAME_ACTIVATE" || isDragging.value) return;
-  const id = streamIdForFrame(e.source);
-  if (id) activateStream(id);
+  // a click inside an embed (sent by the injected audio_focus.js) selects that tile
+  if (e.data?.type === "MULTISTREAM_FRAME_ACTIVATE" && !isDragging.value) {
+    const id = streamIdForFrame(e.source);
+    if (id) layout.selectTile(id);
+  }
+  // the wheel over an embed changed its volume (audio_focus.js): show the level on the tile
+  if (e.data?.type === "MULTISTREAM_FRAME_VOLUME") {
+    const id = streamIdForFrame(e.source);
+    const volume = Number(e.data.volume);
+    if (!id || !Number.isFinite(volume)) return;
+    if (e.data.takeAudio === true) audioStreamId.value = id;
+    announceVolume(id, Math.min(1, Math.max(0, volume)), e.data.muted === true);
+    return;
+  }
+  // an embed's own fullscreen button (relayed by fullscreen_bridge.js) opens the PiP layout
+  if (e.data?.type === "MULTISTREAM_FRAME_FULLSCREEN") {
+    const id = streamIdForFrame(e.source);
+    if (!id) return;
+    if (e.data.on) layout.enter(id);
+    else if (layout.isMain(id)) layout.exit();
+  }
 });
+
+const streamTitle = (stream: Stream) =>
+  stream.vod?.displayName || stream.displayName || stream.channel;
 
 type DomStream = Stream & { _isDead?: boolean };
 const domStreams = ref<DomStream[]>([]);
@@ -128,6 +152,8 @@ watch(focusedStreamId, async (newId) => {
 
 // FLIP animation: streams physically slide to their new focus positions
 watch(focusedStreamId, async () => {
+  // fixed fullscreen / PiP tiles don't slide
+  if (layout.isActive.value) return;
   // 1. FIRST: capture current bounding rect of every stream element
   const elements = document.querySelectorAll<HTMLElement>("[data-stream-id]");
   const prevRects = new Map<string, DOMRect>();
@@ -210,16 +236,45 @@ const getStreamStyle = (streamId: string) => {
   const index = streams.value.findIndex((s) => s.id === streamId);
   const baseStyle = { order: index };
 
-  if (!focusedStreamId.value) return baseStyle;
-  if (isFocused(streamId)) {
-    const rows = Math.max(nonFocusedCount.value, 1);
+  // fullscreen layout: cells switch to fixed positioning instead of moving in the DOM
+  if (layout.isMain(streamId)) {
     return {
       ...baseStyle,
-      gridColumn: "2",
-      gridRow: `1 / ${rows + 1}`,
+      position: "fixed" as const,
+      inset: "0",
+      zIndex: layout.zIndexOf(streamId),
     };
   }
-  return { ...baseStyle, gridColumn: "1" };
+  if (layout.isPip(streamId)) {
+    const rect = layout.rectOf(streamId);
+    return {
+      ...baseStyle,
+      position: "fixed" as const,
+      left: `${rect.left}px`,
+      top: `${rect.top}px`,
+      width: `${rect.width}px`,
+      height: `${rect.height}px`,
+      paddingTop: `${PIP_BAR_PX}px`,
+      zIndex: layout.zIndexOf(streamId),
+    };
+  }
+  // the tiles left in the grid underneath: contain their z-50 layers (skeleton, hover controls)
+  // so nothing of theirs paints or takes clicks over the fullscreen tile
+  if (layout.isActive.value) {
+    return { ...baseStyle, ...gridPlacement(streamId), zIndex: 0, isolation: "isolate" as const };
+  }
+
+  return { ...baseStyle, ...gridPlacement(streamId) };
+};
+
+/** Focus mode places the focused stream in column 2 across every row and the rest in column 1. */
+const gridPlacement = (streamId: string) => {
+  if (!focusedStreamId.value) return {};
+  if (isFocused(streamId)) {
+    const rows = Math.max(nonFocusedCount.value, 1);
+    return { gridColumn: "2", gridRow: `1 / ${rows + 1}` };
+  }
+  return { gridColumn: "1" };
 };
 
 /**
@@ -227,6 +282,10 @@ const getStreamStyle = (streamId: string) => {
  * Handles the 3-stream special case where the last item spans 2 columns.
  */
 const getStreamClass = (streamId: string) => {
+  if (layout.isMain(streamId)) return "!rounded-none";
+  if (layout.isPip(streamId)) {
+    return "!rounded-lg bg-[#14161a] ring-1 ring-white/15 shadow-2xl shadow-black/70";
+  }
   if (focusedStreamId.value) return "";
   const index = streams.value.findIndex((s) => s.id === streamId);
   return streams.value.length === 3 && index === 2 ? "col-span-2 justify-self-center w-1/2" : "";
@@ -246,6 +305,7 @@ const getStreamClass = (streamId: string) => {
       :data-stream-id="stream.id"
       :data-testid="`stream-item-${stream.channel}`"
       :style="getStreamStyle(stream.id)"
+      :inert="layout.isActive.value && !layout.isMain(stream.id) && !layout.isPip(stream.id)"
       :class="[
         getStreamClass(stream.id),
         'min-h-0 min-w-0 stream-item overflow-hidden rounded-sm relative group/grid-item',
@@ -266,7 +326,14 @@ const getStreamClass = (streamId: string) => {
         ]"
       />
 
+      <PipWindowChrome
+        v-if="layout.isPip(stream.id)"
+        :stream-id="stream.id"
+        :title="streamTitle(stream)"
+      />
+
       <div
+        v-if="!layout.isMain(stream.id) && !layout.isPip(stream.id)"
         :class="[
           'absolute z-50 opacity-0 group-hover/grid-item:opacity-100 transition-opacity cursor-grab p-1.5 rounded-md bg-black/60 border border-white/10 hover:bg-black/80 text-white/50 hover:text-white',
           focusedStreamId && !isFocused(stream.id)

@@ -23,7 +23,8 @@
       key === "F11" ||
       key === "Escape"
     ) {
-      window.parent.postMessage({ type: "SHORTCUT", key: key }, "*");
+      // straight to the app: a player nested inside an embed page would otherwise stop at that page
+      window.top.postMessage({ type: "SHORTCUT", key: key }, "*");
 
       e.preventDefault();
       e.stopPropagation();

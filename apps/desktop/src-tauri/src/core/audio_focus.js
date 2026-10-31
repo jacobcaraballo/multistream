@@ -71,12 +71,18 @@
   }
 
   // the platform's own player API keeps its controls in sync; returns true when one handled it
-  function setPlayerMuted(muted) {
+  // keepVolume: an automatic re-apply must not lift a level the user lowered to 0 back to 50%
+  function setPlayerMuted(muted, keepVolume) {
     try {
       var twitch = location.hostname.indexOf("twitch.tv") !== -1 ? findTwitchPlayer() : null;
       if (twitch && typeof twitch.setMuted === "function") {
         twitch.setMuted(muted);
-        if (!muted && typeof twitch.getVolume === "function" && twitch.getVolume() === 0) {
+        if (
+          !muted &&
+          !keepVolume &&
+          typeof twitch.getVolume === "function" &&
+          twitch.getVolume() === 0
+        ) {
           twitch.setVolume(0.5);
         }
         return true;
@@ -90,7 +96,7 @@
         if (muted) youtube.mute();
         else {
           youtube.unMute();
-          if (youtube.getVolume && youtube.getVolume() === 0) youtube.setVolume(50);
+          if (!keepVolume && youtube.getVolume && youtube.getVolume() === 0) youtube.setVolume(50);
         }
         return true;
       }
@@ -100,9 +106,9 @@
     return false;
   }
 
-  function setMuted(muted) {
+  function setMuted(muted, keepVolume) {
     if (window.__isGraveyard) return;
-    var handled = setPlayerMuted(muted);
+    var handled = setPlayerMuted(muted, keepVolume);
     if (muted) {
       // silence everything in a tile that doesn't have the audio
       var media = document.querySelectorAll("video, audio");
@@ -113,7 +119,7 @@
     var video = mainVideo();
     if (!video) return;
     video.muted = false;
-    if (video.volume === 0) video.volume = 0.5;
+    if (!keepVolume && video.volume === 0) video.volume = 0.5;
   }
 
   // Twitch pauses embeds smaller than 400x300 (e.g. the big viewer's side column), so a tile that
@@ -176,6 +182,7 @@
 
   window.addEventListener("message", function (e) {
     if (!e.data || e.data.type !== STATE || e.source !== window.parent) return;
+    if (!isTile) scheduleQualityCap();
     isTile = true;
     var next = typeof e.data.active === "boolean" ? e.data.active : null;
     if (next === null) active = null;
@@ -184,9 +191,202 @@
     if (next !== true || !mainVideo()) relayToChildren({ type: STATE, active: next });
   });
 
+  // Twitch embeds share one saved quality, so picking "Source" in any tile pins every tile to
+  // source; a grid of those starves most links. Tiles go back to auto quality, capped at what
+  // the tile can show. Only the embed's first player is switched to auto: the ad-block rebuilds
+  // the player after ads with the tile's own saved choice, and a quality the user picked in the
+  // meantime stays until the embed reloads.
+  var cappedPlayer = null;
+  var cappedSize = "";
+  var forcedAuto = false;
+  function capTwitchQuality() {
+    if (location.hostname.indexOf("twitch.tv") === -1) return;
+    try {
+      var player = findTwitchPlayer();
+      if (!player || typeof player.setAutoMaxVideoSize !== "function") return;
+      // a ceiling (Twitch picks the best quality that fits), unlike hls.js' cap which rounds up
+      var ratio = Math.min(window.devicePixelRatio || 1, 2);
+      var width = Math.round(window.innerWidth * ratio);
+      var height = Math.round(window.innerHeight * ratio);
+      var size = width + "x" + height;
+      if (player === cappedPlayer && size === cappedSize) return;
+      if (!forcedAuto && typeof player.setAutoQualityMode === "function") {
+        player.setAutoQualityMode(true);
+        forcedAuto = true;
+      }
+      player.setAutoMaxVideoSize(width, height);
+      cappedPlayer = player;
+      cappedSize = size;
+    } catch (err) {
+      // an unexpected player build: leave its quality alone
+    }
+  }
+
+  // the player mounts after the page and is rebuilt after ads, so check again for a while
+  function scheduleQualityCap() {
+    [0, 2000, 6000, 15000, 40000].forEach(function (delay) {
+      setTimeout(capTwitchQuality, delay);
+    });
+  }
+
+  // Scroll-wheel volume over an embed. Wheel events over an iframe never reach the app, so the
+  // frame changes the level itself and reports it (the app shows the level on the tile). Louder
+  // on a tile without the audio asks the app for the audio, as a click would. The step logic
+  // mirrors src/lib/wheelVolume.ts: keep the two in step.
+  var VOLUME = "MULTISTREAM_FRAME_VOLUME";
+  var VOLUME_STEP = 0.05;
+  var GESTURE_GAP_MS = 40;
+  var PX_PER_STEP = 100;
+  var MAX_STEPS = 4;
+  var wheelPx = 0;
+  var wheelAt = -Infinity;
+
+  function wheelSteps(e) {
+    if (e.deltaY === 0 || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return 0;
+    var px = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY;
+    var now = performance.now();
+    var fresh = now - wheelAt > GESTURE_GAP_MS;
+    wheelAt = now;
+    if (fresh) {
+      wheelPx = 0;
+      return px < 0 ? 1 : -1;
+    }
+    wheelPx += px;
+    var steps = Math.trunc(wheelPx / PX_PER_STEP);
+    wheelPx -= steps * PX_PER_STEP;
+    return Math.max(-MAX_STEPS, Math.min(MAX_STEPS, -steps));
+  }
+
+  // an open menu (quality list, settings panel) keeps scrolling normally
+  function isInsideScrollable(target) {
+    var el = target instanceof Element ? target : null;
+    while (el && el !== document.body && el !== document.documentElement) {
+      if (el.scrollHeight > el.clientHeight + 1) {
+        var overflow = getComputedStyle(el).overflowY;
+        if (overflow === "auto" || overflow === "scroll") return true;
+      }
+      el = el.parentElement;
+    }
+    return false;
+  }
+
+  // the player's volume (0..1) through its own API, so its slider follows
+  function playerVolume() {
+    try {
+      var twitch = location.hostname.indexOf("twitch.tv") !== -1 ? findTwitchPlayer() : null;
+      if (
+        twitch &&
+        typeof twitch.getVolume === "function" &&
+        typeof twitch.setVolume === "function"
+      ) {
+        return {
+          volume: twitch.getVolume(),
+          muted: typeof twitch.isMuted === "function" ? twitch.isMuted() : false,
+          set: function (v) {
+            twitch.setVolume(v);
+          },
+        };
+      }
+    } catch (e) {
+      // fall back to the media elements
+    }
+    try {
+      var youtube = document.getElementById("movie_player");
+      if (
+        youtube &&
+        typeof youtube.getVolume === "function" &&
+        typeof youtube.setVolume === "function"
+      ) {
+        return {
+          volume: youtube.getVolume() / 100,
+          muted: typeof youtube.isMuted === "function" ? youtube.isMuted() : false,
+          set: function (v) {
+            youtube.setVolume(Math.round(v * 100));
+          },
+        };
+      }
+    } catch (e) {
+      // fall back to the media elements
+    }
+    var video = mainVideo();
+    if (!video) return null;
+    return {
+      volume: video.volume,
+      muted: video.muted,
+      set: function (v) {
+        video.volume = v;
+      },
+    };
+  }
+
+  window.addEventListener(
+    "wheel",
+    function (e) {
+      if (!isTile || window.__isGraveyard || e.ctrlKey || e.metaKey) return;
+      if (Math.abs(e.deltaY) < Math.abs(e.deltaX) || isInsideScrollable(e.target)) return;
+      // only over the player itself: a custom tile's page around it keeps scrolling
+      var video = mainVideo();
+      if (!video) return;
+      var box = video.getBoundingClientRect();
+      if (
+        e.clientX < box.left ||
+        e.clientX > box.right ||
+        e.clientY < box.top ||
+        e.clientY > box.bottom
+      ) {
+        return;
+      }
+      var player = playerVolume();
+      if (!player) return;
+      e.preventDefault();
+      var steps = wheelSteps(e);
+      if (!steps) return;
+
+      var next = Math.min(
+        1,
+        Math.max(0, (Math.round(player.volume / VOLUME_STEP) + steps) * VOLUME_STEP)
+      );
+      player.set(next);
+      var takeAudio = steps > 0 && active !== true;
+      var muted = player.muted;
+      if (steps > 0) {
+        muted = false;
+        // a takeover is unmuted by the app's answer; a tile with the audio unmutes itself
+        if (!takeAudio && player.muted) setMuted(false);
+      } else if (next === 0) {
+        muted = true;
+      }
+      try {
+        window.top.postMessage(
+          { type: VOLUME, volume: next, muted: muted, takeAudio: takeAudio },
+          "*"
+        );
+      } catch (err) {
+        // the app is gone
+      }
+    },
+    { capture: true, passive: false }
+  );
+
+  // a player rebuilt after an ad starts on the shared saved quality again
+  document.addEventListener(
+    "playing",
+    function () {
+      if (isTile) capTwitchQuality();
+    },
+    true
+  );
+
+  var resizeTimer = 0;
+  window.addEventListener("resize", function () {
+    if (!isTile) return;
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(capTwitchQuality, 500);
+  });
+
   // a player (re)starting media within the enforcement window gets the shared choice again
   function reapply() {
-    if (active !== null && Date.now() < enforceUntil) setMuted(!active);
+    if (active !== null && Date.now() < enforceUntil) setMuted(!active, true);
   }
   document.addEventListener("playing", reapply, true);
   document.addEventListener("loadedmetadata", reapply, true);

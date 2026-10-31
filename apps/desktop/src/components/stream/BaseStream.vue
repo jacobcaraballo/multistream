@@ -5,6 +5,10 @@ import {
   X,
   Heart,
   Maximize2,
+  Fullscreen,
+  Volume1,
+  Volume2,
+  VolumeX,
   Camera,
   Circle,
   CircleStop,
@@ -23,11 +27,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/composables/useToast";
 import { useLiveStatus, type LiveStatus } from "@/composables/useLiveStatus";
 import { invoke } from "@tauri-apps/api/core";
-import { useElementSize } from "@vueuse/core";
+import { useElementSize, useEventListener } from "@vueuse/core";
 import { useProfilePicture } from "@/composables/useProfilePicture";
 import { useRecording } from "@/composables/useRecording";
 import { usePreferences } from "@/composables/usePreferences";
 import { useNetworkStatus } from "@/composables/useNetworkStatus";
+import { useFullscreenLayout } from "@/composables/useFullscreenLayout";
 import { isVodPlatform } from "@/lib/vod";
 import { useDragAndDrop } from "@/composables/useDragAndDrop";
 import ChatOverlay from "@/components/chat/ChatOverlay.vue";
@@ -41,7 +46,6 @@ const {
   focusedStreamId,
   audioStreamId,
   isAudioActive,
-  activateStream,
   needsActivation,
 } = useFocusedStream();
 const { isDragging } = useDragAndDrop();
@@ -205,15 +209,49 @@ const canOverlayChat = computed(() => props.platform === "twitch" || props.platf
 const overlayPlatform = computed(() => (props.platform === "kick" ? "kick" : "twitch"));
 const chatOverlayOn = computed(() => canOverlayChat.value && isChatOverlayOn(props.channelid));
 
-// native players fullscreen the whole tile, which brings the chat overlay along
-const isTileFullscreen = ref(false);
-const onFullscreenChange = () => {
-  isTileFullscreen.value =
-    !!containerRef.value && document.fullscreenElement === containerRef.value;
-};
+// fullscreen is the app's PiP layout: this tile fills the screen, or floats over the one that does
+const layout = useFullscreenLayout();
+const isTileFullscreen = computed(() => layout.isMain(props.channelid));
+const isPip = computed(() => layout.isPip(props.channelid));
 
-// true when another stream is focused and this one is miniaturized in the sidebar
-const isMiniaturized = computed(() => !!focusedStreamId.value && !isFocused(props.channelid));
+// embeds get a fullscreen button here; native players have one in their own controls
+const isEmbed = computed(
+  () => !props.isVod && !(props.platform === "twitch" && nativePlayerEnabled.value)
+);
+
+// leaving the layout: an embed that went fullscreen through its own button flips its icon back
+watch(isTileFullscreen, (on, was) => {
+  if (on || !was) return;
+  const frame = containerRef.value?.querySelector("iframe")?.contentWindow;
+  frame?.postMessage({ type: "MULTISTREAM_FULLSCREEN_STATE", on: false }, "*");
+});
+
+// the level the wheel just set on this tile (native players and embeds both announce it)
+const VOLUME_OSD_MS = 900;
+const volumeOsd = ref<{ volume: number; muted: boolean } | null>(null);
+let volumeOsdTimer: ReturnType<typeof setTimeout> | null = null;
+useEventListener(window, "multistream-volume", (e: Event) => {
+  const detail = (e as CustomEvent<{ streamId: string; volume: number; muted: boolean }>).detail;
+  if (detail?.streamId !== props.channelid) return;
+  volumeOsd.value = { volume: detail.volume, muted: detail.muted };
+  if (volumeOsdTimer) clearTimeout(volumeOsdTimer);
+  volumeOsdTimer = setTimeout(() => {
+    volumeOsd.value = null;
+    volumeOsdTimer = null;
+  }, VOLUME_OSD_MS);
+});
+const volumeOsdIcon = computed(() => {
+  const osd = volumeOsd.value;
+  if (!osd || osd.muted || osd.volume === 0) return VolumeX;
+  return osd.volume < 50 ? Volume1 : Volume2;
+});
+
+// true when another stream is focused and this one is miniaturized in the sidebar, or a PiP
+const isMiniaturized = computed(
+  () =>
+    !isTileFullscreen.value &&
+    (isPip.value || (!!focusedStreamId.value && !isFocused(props.channelid)))
+);
 
 const { getProfilePicture } = useProfilePicture();
 const profilePictureUrl = getProfilePicture(props.displayName || props.channel, props.platform);
@@ -385,8 +423,14 @@ const reloadStream = () => {
   );
 };
 
+// players ride out a short blip from their own buffer; reloading them would throw it away
+const SHORT_OUTAGE_MS = 15_000;
+
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-const unsubscribeReconnect = onReconnect(() => {
+const unsubscribeReconnect = onReconnect(({ offlineMs }) => {
+  // VOD players resume loading by themselves once the network is back; embedded players retry
+  // through a short blip on their own, but the built-in Twitch player gives up on it
+  if (props.isVod || (isEmbed.value && offlineMs < SHORT_OUTAGE_MS)) return;
   const jitter = 50 + Math.floor(Math.random() * 250);
   if (reconnectTimer) {
     clearTimeout(reconnectTimer);
@@ -460,7 +504,6 @@ onMounted(() => {
   }, 4000);
 
   window.addEventListener("multistream-screenshot", onScreenshotEvent);
-  document.addEventListener("fullscreenchange", onFullscreenChange);
 });
 
 onUnmounted(() => {
@@ -470,8 +513,8 @@ onUnmounted(() => {
   if (reloadHandshakeTimer) clearTimeout(reloadHandshakeTimer);
   if (reloadCheckTimer) clearTimeout(reloadCheckTimer);
   if (audioStateTimer) clearTimeout(audioStateTimer);
+  if (volumeOsdTimer) clearTimeout(volumeOsdTimer);
   window.removeEventListener("multistream-screenshot", onScreenshotEvent);
-  document.removeEventListener("fullscreenchange", onFullscreenChange);
 });
 
 function onScreenshotEvent() {
@@ -593,12 +636,16 @@ watch(audioStreamId, postAudioState);
 // native players (VODs, built-in Twitch): the first press on an inactive tile selects it
 const onTilePress = (e: PointerEvent) => {
   swallowing = false;
-  if (e.button !== 0 || isDragging.value || !needsActivation(props.channelid)) return;
+  // in the PiP layout a press only moves the audio; outside it, it may also fill the big viewer
+  const needed = layout.isActive.value
+    ? !isAudioActive(props.channelid)
+    : needsActivation(props.channelid);
+  if (e.button !== 0 || isDragging.value || !needed) return;
   if ((e.target as Element | null)?.closest?.(CONTROL_SELECTOR)) return;
   swallowing = true;
   e.stopPropagation();
   e.preventDefault();
-  activateStream(props.channelid);
+  layout.selectTile(props.channelid);
 };
 
 const cancelSwallow = () => {
@@ -840,9 +887,9 @@ const handleCopyUrl = async () => {
       </div>
     </Transition>
 
-    <!-- stream controls - appears on hover (not in the player's fullscreen, where it would stick) -->
+    <!-- stream controls - appears on hover (not in fullscreen, where it would stick, or on a PiP) -->
     <div
-      v-if="!isTileFullscreen"
+      v-if="!isTileFullscreen && !isPip"
       :class="[
         'absolute z-50 flex flex-col opacity-0 translate-x-2 transition-all duration-300 group-hover:opacity-100 group-hover:translate-x-0 pointer-events-none',
         isMiniaturized ? 'top-1 right-1 gap-1' : 'top-2 right-2 gap-2',
@@ -991,11 +1038,25 @@ const handleCopyUrl = async () => {
       >
         <Maximize2 :class="isMiniaturized ? 'size-3' : 'size-4'" />
       </button>
+      <!-- fullscreen with picture-in-picture (native players have their own button) -->
+      <button
+        v-if="isEmbed"
+        :data-testid="`fullscreen-stream-${channel}`"
+        :aria-label="$t('stream.actions.fullscreen')"
+        :title="$t('stream.actions.fullscreen')"
+        :class="[
+          'pointer-events-auto flex items-center justify-center rounded-lg bg-black/60 backdrop-blur-sm border border-white/10 text-white/80 hover:bg-white/20 hover:text-white hover:border-white/30 transition-all duration-200 hover:scale-110 cursor-pointer',
+          isMiniaturized ? 'size-5' : 'size-8',
+        ]"
+        @click="layout.enter(channelid)"
+      >
+        <Fullscreen :class="isMiniaturized ? 'size-3' : 'size-4'" />
+      </button>
     </div>
 
     <!-- watch timer bottom overlay bar - appears on hover -->
     <div
-      v-if="!props.isVod && !isTileFullscreen"
+      v-if="!props.isVod && !isTileFullscreen && !isPip"
       :class="[
         'absolute bottom-3 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-[9px] text-white/70 pointer-events-none opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 z-10 shadow-lg flex items-center gap-1.5',
         isMiniaturized ? 'scale-90 bottom-1' : '',
@@ -1018,8 +1079,30 @@ const handleCopyUrl = async () => {
       </span>
     </div>
 
+    <!-- volume level after a scroll over the tile -->
+    <Transition name="fade">
+      <div
+        v-if="volumeOsd"
+        role="status"
+        :aria-label="`${$t('common.volume')} ${volumeOsd.volume}%`"
+        :data-testid="`volume-osd-${channel}`"
+        class="pointer-events-none absolute left-1/2 top-1/2 z-40 flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-full bg-black/75 px-3 py-1.5 text-white shadow-lg backdrop-blur-sm"
+        :class="isMiniaturized ? 'scale-90' : ''"
+      >
+        <component :is="volumeOsdIcon" class="size-4 shrink-0" aria-hidden="true" />
+        <div class="h-1 w-20 overflow-hidden rounded-full bg-white/25">
+          <div
+            class="h-full rounded-full transition-[width] duration-100"
+            :class="volumeOsd.muted ? 'bg-white/40' : 'bg-white'"
+            :style="{ width: `${volumeOsd.volume}%` }"
+          />
+        </div>
+        <span class="w-8 text-right text-xs font-medium tabular-nums">{{ volumeOsd.volume }}%</span>
+      </div>
+    </Transition>
+
     <ChatOverlay
-      v-if="chatOverlayOn && (!isMiniaturized || isTileFullscreen)"
+      v-if="chatOverlayOn && !isPip && (!isMiniaturized || isTileFullscreen)"
       :stream-id="channelid"
       :channel="channel"
       :platform="overlayPlatform"

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, defineAsyncComponent } from "vue";
+import { ref, reactive, computed, watch, onMounted, onUnmounted, defineAsyncComponent } from "vue";
 import { Menu, X, WifiOff } from "@lucide/vue";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
@@ -14,6 +14,7 @@ import { useNetworkStatus } from "./composables/useNetworkStatus";
 import { useImmersiveMode } from "./composables/useImmersiveMode";
 import { useVodSync } from "./composables/useVodSync";
 import { useFocusedStream } from "./composables/useFocusedStream";
+import { useFullscreenLayout } from "./composables/useFullscreenLayout";
 import ToastProvider from "./components/ui/toast/ToastProvider.vue";
 import FollowedChannelsSidebar from "./components/main/FollowedChannelsSidebar.vue";
 import SidebarPanel from "./components/main/SidebarPanel.vue";
@@ -23,16 +24,24 @@ import OnboardingTour from "./components/dialogs/OnboardingTour.vue";
 import TwitchAuthDialog from "./components/dialogs/TwitchAuthDialog.vue";
 import KickAuthDialog from "./components/dialogs/KickAuthDialog.vue";
 import ChangelogDialog from "./components/dialogs/ChangelogDialog.vue";
+import FullscreenLayoutBar from "./components/main/FullscreenLayoutBar.vue";
 
 import { toast } from "@/composables/useToast";
 import { useI18n } from "vue-i18n";
 import { parseUrlOptions } from "./lib/parseUrlOptions";
 import { resolveStream } from "./lib/streamResolver";
 import { APP_LINKS } from "./config/links";
+import { isVodPlatform, type VodPlatform } from "./lib/vod";
 
 const VodSyncBar = defineAsyncComponent(() => import("./components/main/VodSyncBar.vue"));
+const AddDialog = defineAsyncComponent(() => import("./components/dialogs/AddDialog.vue"));
+const ShareDialog = defineAsyncComponent(() => import("./components/dialogs/ShareDialog.vue"));
+const ImportDialog = defineAsyncComponent(() => import("./components/dialogs/ImportDialog.vue"));
+const VodDialog = defineAsyncComponent(() => import("./components/dialogs/VodDialog.vue"));
+const SettingsDialog = defineAsyncComponent(
+  () => import("./components/dialogs/SettingsDialog.vue")
+);
 
-const sidebarRef = ref<InstanceType<typeof SidebarPanel> | null>(null);
 const showOnboarding = ref(false);
 const dismissedWebBanner = ref(false);
 const showTwitchAuth = ref(false);
@@ -73,8 +82,48 @@ watch(
   { immediate: true }
 );
 
+// toolbar dialogs mount on first open and stay mounted so reopening is instant
+const addDialogOpen = ref(false);
+const shareDialogOpen = ref(false);
+const importDialogOpen = ref(false);
+const settingsDialogOpen = ref(false);
+const vodDialogOpen = ref(false);
+const vodDialogTarget = ref<{ platform: VodPlatform; channel: string } | null>(null);
+const hasOpened = reactive({
+  add: false,
+  share: false,
+  import: false,
+  settings: false,
+  vods: false,
+});
+
+watch(addDialogOpen, (v) => {
+  if (v) hasOpened.add = true;
+});
+watch(shareDialogOpen, (v) => {
+  if (v) hasOpened.share = true;
+});
+watch(importDialogOpen, (v) => {
+  if (v) hasOpened.import = true;
+});
+watch(settingsDialogOpen, (v) => {
+  if (v) hasOpened.settings = true;
+});
+watch(vodDialogOpen, (v) => {
+  if (v) hasOpened.vods = true;
+});
+
+function handleOpenVodsEvent(e: Event) {
+  const detail = (e as CustomEvent<{ platform?: string; channel?: string } | null>).detail;
+  const platform = detail?.platform;
+  vodDialogTarget.value =
+    platform && detail.channel && isVodPlatform(platform)
+      ? { platform, channel: detail.channel }
+      : null;
+  vodDialogOpen.value = true;
+}
+
 const { streams, addStream, clearStreams } = useStreams();
-const hasVods = computed(() => streams.value.some((s) => s.vod));
 const {
   sidebarOpen,
   setSelectedChat,
@@ -85,8 +134,11 @@ const {
   vodSkipForwardSeconds,
   vodSkipBackSeconds,
 } = usePreferences();
-const { skip: skipVods } = useVodSync();
+const { skip: skipVods, vodStreams } = useVodSync();
+// the shared timeline only earns its space once there's more than one VOD to line up
+const showVodSyncBar = computed(() => vodStreams.value.length > 1);
 const { audioStreamId, focusedStreamId } = useFocusedStream();
+const layout = useFullscreenLayout();
 const { checkForUpdates } = useUpdater();
 const { refreshSuggestions, startPolling } = useLiveStatus();
 const { checkVideoCodecs } = useMediaCodecs();
@@ -127,17 +179,19 @@ function handleGlobalKeyDown(e: KeyboardEvent) {
     return;
   }
 
-  // F11: toggle fullscreen
+  // F11: toggle fullscreen (or leave the PiP layout)
   if (e.key === "F11") {
     e.preventDefault();
-    toggleFullscreen();
+    if (layout.isActive.value) layout.exit();
+    else toggleFullscreen();
     return;
   }
 
-  // Escape: exit immersive mode / auto-hide revealed panels if no modal dialog is open
+  // Escape: leave the PiP layout / exit immersive mode / auto-hide revealed panels if no modal dialog is open
   if (e.key === "Escape") {
     if (!isModalDialogOpen()) {
-      handleEscape();
+      if (layout.isActive.value) layout.exit();
+      else handleEscape();
       return;
     }
   }
@@ -183,13 +237,15 @@ function handleFrameShortcuts(e: MessageEvent) {
   if (e.data?.type !== "SHORTCUT" || showOnboarding.value) return;
 
   if (e.data?.key === "F11") {
-    toggleFullscreen();
+    if (layout.isActive.value) layout.exit();
+    else toggleFullscreen();
     return;
   }
 
   if (e.data?.key === "Escape") {
     if (!isModalDialogOpen()) {
-      handleEscape();
+      if (layout.isActive.value) layout.exit();
+      else handleEscape();
       return;
     }
   }
@@ -251,6 +307,14 @@ function handleDialogShowEvent(e: Event) {
     showKickAuth.value = true;
   } else if (evt.detail === "changelog") {
     showChangelog.value = true;
+  } else if (evt.detail === "add-stream") {
+    addDialogOpen.value = true;
+  } else if (evt.detail === "settings") {
+    settingsDialogOpen.value = true;
+  } else if (evt.detail === "share") {
+    shareDialogOpen.value = true;
+  } else if (evt.detail === "import") {
+    importDialogOpen.value = true;
   }
 }
 
@@ -260,6 +324,7 @@ onMounted(async () => {
   window.addEventListener("keydown", handleGlobalKeyDown);
   window.addEventListener("message", handleFrameShortcuts);
   window.addEventListener("multistream-show-dialog", handleDialogShowEvent);
+  window.addEventListener("multistream-open-vods", handleOpenVodsEvent);
 
   if (isTauri()) {
     invoke("stop_all_recordings_on_reload").catch(() => {});
@@ -347,6 +412,7 @@ onUnmounted(() => {
   window.removeEventListener("keydown", handleGlobalKeyDown);
   window.removeEventListener("message", handleFrameShortcuts);
   window.removeEventListener("multistream-show-dialog", handleDialogShowEvent);
+  window.removeEventListener("multistream-open-vods", handleOpenVodsEvent);
 
   if (unlistenWatch) {
     unlistenWatch();
@@ -410,26 +476,26 @@ onUnmounted(() => {
           <!-- stream grid -->
           <StreamGrid v-if="streams.length > 0" />
 
-          <EmptyState v-else @add="sidebarRef?.openAddDialog()" @tour="showOnboarding = true" />
+          <EmptyState v-else @add="addDialogOpen = true" @tour="showOnboarding = true" />
         </div>
 
         <!-- shared timeline for past broadcasts -->
-        <VodSyncBar v-if="hasVods" />
+        <VodSyncBar v-if="showVodSyncBar" />
       </main>
     </div>
 
     <!-- sidebar -->
-    <SidebarPanel ref="sidebarRef" />
+    <SidebarPanel />
 
     <!-- edge hover trigger zones for immersive mode -->
     <div
-      v-if="immersiveModeEnabled && !isLeftPanelRevealed"
+      v-if="immersiveModeEnabled && !isLeftPanelRevealed && !layout.isActive.value"
       data-testid="immersive-left-trigger"
       class="fixed inset-y-0 left-0 w-3.5 z-40 pointer-events-auto"
       @mouseenter="revealLeftPanel"
     />
     <div
-      v-if="immersiveModeEnabled && !isRightPanelRevealed"
+      v-if="immersiveModeEnabled && !isRightPanelRevealed && !layout.isActive.value"
       data-testid="immersive-right-trigger"
       class="fixed inset-y-0 right-0 w-3.5 z-40 pointer-events-auto"
       @mouseenter="revealRightPanel"
@@ -445,6 +511,9 @@ onUnmounted(() => {
       <Menu class="size-4 text-gray-400 group-hover:text-white transition-colors duration-200" />
     </button>
 
+    <!-- fullscreen with picture-in-picture: pick overlays / leave -->
+    <FullscreenLayoutBar v-if="layout.isActive.value" />
+
     <ToastProvider />
 
     <!-- onboarding tour -->
@@ -458,5 +527,11 @@ onUnmounted(() => {
     <TwitchAuthDialog v-if="hasOpenedTwitchAuth" v-model:open="showTwitchAuth" />
     <KickAuthDialog v-if="hasOpenedKickAuth" v-model:open="showKickAuth" />
     <ChangelogDialog v-if="hasOpenedChangelog" v-model:open="showChangelog" />
+
+    <AddDialog v-if="hasOpened.add" v-model:open="addDialogOpen" />
+    <ShareDialog v-if="hasOpened.share" v-model:open="shareDialogOpen" />
+    <ImportDialog v-if="hasOpened.import" v-model:open="importDialogOpen" />
+    <SettingsDialog v-if="hasOpened.settings" v-model:open="settingsDialogOpen" />
+    <VodDialog v-if="hasOpened.vods" v-model:open="vodDialogOpen" :target="vodDialogTarget" />
   </div>
 </template>

@@ -14,8 +14,8 @@ use audio::transcriber::TranscriptionState;
 mod twitch;
 use twitch::commands::{
     twitch_cancel_login, twitch_get_auth_state, twitch_get_connection_state,
-    twitch_get_followed_streams, twitch_get_hls_url, twitch_get_messages, twitch_login,
-    twitch_logout, twitch_send_message, twitch_set_channels,
+    twitch_get_followed_channels, twitch_get_followed_streams, twitch_get_hls_url,
+    twitch_get_messages, twitch_login, twitch_logout, twitch_send_message, twitch_set_channels,
 };
 use twitch::state::TwitchState;
 use twitch::web_session::{twitch_web_login, twitch_web_logout, twitch_web_session_state};
@@ -70,6 +70,7 @@ pub(crate) const BROWSER_ARGS: &str =
 const SCREENSHOT_SCRIPT: &str = include_str!("core/screenshot_capture.js");
 const KEYBOARD_SCRIPT: &str = include_str!("core/keyboard_shortcuts.js");
 const AUDIO_FOCUS_SCRIPT: &str = include_str!("core/audio_focus.js");
+const FULLSCREEN_BRIDGE_SCRIPT: &str = include_str!("core/fullscreen_bridge.js");
 
 const STREAM_FILTER_SCRIPT: &str = include_str!("core/stream_filter.js");
 
@@ -173,6 +174,7 @@ pub fn run() {
             kick_send_message,
             kick_set_channels,
             twitch_get_followed_streams,
+            twitch_get_followed_channels,
             twitch_get_hls_url,
             start_recording,
             stop_recording,
@@ -214,6 +216,7 @@ pub fn run() {
         )
         .setup(move |app| {
             network::start_network_monitor(app.handle().clone());
+            vod::stream_proxy::start();
             app.manage(TranscriptionState(std::sync::Mutex::new(None)));
             app.manage(RecordingManager::new());
 
@@ -384,6 +387,7 @@ pub fn run() {
                 .initialization_script_for_all_frames(SCREENSHOT_SCRIPT)
                 .initialization_script_for_all_frames(KEYBOARD_SCRIPT)
                 .initialization_script_for_all_frames(AUDIO_FOCUS_SCRIPT)
+                .initialization_script_for_all_frames(FULLSCREEN_BRIDGE_SCRIPT)
                 .build()?;
 
             // system tray
