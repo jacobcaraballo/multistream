@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.11] - 2026-10-31
+
+### Bug Fixes
+
+- **vod**: Resume where playback stopped and stream Twitch VODs through a loopback relay ([bb0d416](https://github.com/jacobcaraballo/multistream/commit/bb0d4163f6f16816e8ca79003e7eea28753de861))
+
+### Features
+
+- **sidebar**: List offline Twitch follows and move the toolbar to the left sidebar ([7581990](https://github.com/jacobcaraballo/multistream/commit/758199060904f3761497a2b09a4950c66d90e8f5))
+- **player**: Fullscreen picture-in-picture and scroll-wheel volume ([771b45c](https://github.com/jacobcaraballo/multistream/commit/771b45c538cf5d8577863013c6a86a4464caa5ea))
+
 ## [0.19.10] - 2026-10-31
 
 ### Bug Fixes
