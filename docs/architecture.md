@@ -164,8 +164,8 @@ The desktop application pairs a reactive Vue 3 frontend with an asynchronous Rus
 │   │                                                                │   │
 │   │   [App.vue] Shell                                              │   │
 │   │     ├── [StreamGrid.vue] ─── FLIP Grid + Graveyard Iframes     │   │
-│   │     ├── [SidebarPanel.vue] ── Chat Tabs, Recents, Settings     │   │
-│   │     └── [FollowedChannelsSidebar.vue] ── Live Channel Statuses │   │
+│   │     ├── [SidebarPanel.vue] ── Chat & Transcript Tabs           │   │
+│   │     └── [FollowedChannelsSidebar.vue] ── Follows + Toolbar     │   │
 │   │                                                                │   │
 │   │   [Composables Layer] (useStreams, useLiveStatus, etc.)        │   │
 │   └──────────────────────────────┬─────────────────────────────────┘   │

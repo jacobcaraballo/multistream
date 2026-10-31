@@ -227,6 +227,10 @@
       "back": "Detik mundur tombol panah kiri",
       "forward": "Detik maju tombol panah kanan",
       "secondsUnit": "dtk"
+    },
+    "shareLink": {
+      "title": "Tautan berbagi",
+      "description": "Kirim siaran yang terbuka sebagai tautan, atau buka tautan yang dibagikan."
     }
   },
   "share": {
@@ -268,7 +272,8 @@
       "reload": "Muat ulang siaran",
       "vods": "Jelajahi VOD",
       "chatOverlay": "Tampilkan chat di atas siaran",
-      "hideChatOverlay": "Sembunyikan chat di atas siaran"
+      "hideChatOverlay": "Sembunyikan chat di atas siaran",
+      "fullscreen": "Layar penuh"
     }
   },
   "empty": {
@@ -443,7 +448,7 @@
       "title": "Tambah Stream",
       "description": "Susun grid Anda dengan siaran langsung dari Twitch, Kick, YouTube, atau tautan sematan khusus dalam satu layar dengan koneksi langsung ke setiap platform.",
       "customPlatform": "Kustom",
-      "hint": "Tekan {key} atau klik '+' di bilah sisi kanan untuk menambahkan saluran. Saat beberapa siaran terbuka, seret ubin untuk mengatur ulang urutan grid atau tekan F saat mengarahkan kursor ke siaran untuk memperbesarnya."
+      "hint": "Tekan {key} atau klik '+' di bagian bawah bilah sisi kiri untuk menambahkan saluran. Saat beberapa siaran terbuka, seret ubin untuk mengatur ulang urutan grid atau tekan F saat mengarahkan kursor ke siaran untuk memperbesarnya."
     },
     "step2": {
       "title": "Kontrol Obrolan",
@@ -511,7 +516,15 @@
     "loginTitle": "Hubungkan akun Anda",
     "loginSubtitle": "Lihat saluran yang Anda ikuti",
     "noChannels": "Tidak ada channel yang online",
-    "noChannelsSubtitle": "Favoritkan channel atau hubungkan akun Twitch Anda."
+    "noChannelsSubtitle": "Favoritkan channel atau hubungkan akun Twitch Anda.",
+    "collapse": "Ciutkan bilah sisi",
+    "expand": "Bentangkan bilah sisi",
+    "offlineCount": "Offline ({count})",
+    "lastLive": "Live {time}",
+    "noRecentBroadcast": "Tidak ada siaran terbaru",
+    "browseVods": "Jelajahi siaran sebelumnya",
+    "showOffline": "Tampilkan saluran offline",
+    "hideOffline": "Sembunyikan saluran offline"
   },
   "nativePlayer": {
     "live": "LANGSUNG",
@@ -622,5 +635,15 @@
   },
   "chatOverlay": {
     "twitchSignIn": "Hubungkan chat Twitch di Pengaturan untuk melihat chat di sini"
+  },
+  "pip": {
+    "title": "Gambar dalam gambar",
+    "add": "Tampilkan di atas siaran layar penuh",
+    "close": "Hapus dari gambar dalam gambar",
+    "makeMain": "Tukar dengan siaran layar penuh",
+    "exit": "Keluar dari layar penuh (Esc)",
+    "none": "Tidak ada siaran lain yang terbuka",
+    "drag": "Seret untuk memindahkan",
+    "resize": "Seret untuk mengubah ukuran"
   }
 }

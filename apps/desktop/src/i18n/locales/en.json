@@ -227,6 +227,10 @@
       "back": "Seconds the Left arrow skips back",
       "forward": "Seconds the Right arrow skips ahead",
       "secondsUnit": "s"
+    },
+    "shareLink": {
+      "title": "Share links",
+      "description": "Send your open streams as a link, or open a link someone shared."
     }
   },
   "share": {
@@ -268,7 +272,8 @@
       "reload": "Reload stream",
       "vods": "Browse VODs",
       "chatOverlay": "Show chat on stream",
-      "hideChatOverlay": "Hide chat on stream"
+      "hideChatOverlay": "Hide chat on stream",
+      "fullscreen": "Fullscreen"
     }
   },
   "empty": {
@@ -443,7 +448,7 @@
       "title": "Add Streams",
       "description": "Build your grid with live streams from Twitch, Kick, YouTube, or custom embed links on a single screen with direct connections to each platform.",
       "customPlatform": "Custom",
-      "hint": "Press {key} or click '+' in the right sidebar to add channels. Once multiple streams are open, drag tiles to reorder your grid or press F while hovering a stream to expand it."
+      "hint": "Press {key} or click '+' at the bottom of the left sidebar to add channels. Once multiple streams are open, drag tiles to reorder your grid or press F while hovering a stream to expand it."
     },
     "step2": {
       "title": "Chat Control",
@@ -511,7 +516,15 @@
     "loginTitle": "Connect your account",
     "loginSubtitle": "See the channels you follow",
     "noChannels": "No channels online",
-    "noChannelsSubtitle": "Favorite channels or connect your Twitch account."
+    "noChannelsSubtitle": "Favorite channels or connect your Twitch account.",
+    "collapse": "Collapse sidebar",
+    "expand": "Expand sidebar",
+    "offlineCount": "Offline ({count})",
+    "lastLive": "Live {time}",
+    "noRecentBroadcast": "No recent broadcasts",
+    "browseVods": "Browse past broadcasts",
+    "showOffline": "Show offline channels",
+    "hideOffline": "Hide offline channels"
   },
   "nativePlayer": {
     "live": "LIVE",
@@ -622,5 +635,15 @@
   },
   "chatOverlay": {
     "twitchSignIn": "Connect Twitch chat in Settings to see chat here"
+  },
+  "pip": {
+    "title": "Picture in picture",
+    "add": "Show over the fullscreen stream",
+    "close": "Remove from picture in picture",
+    "makeMain": "Swap with the fullscreen stream",
+    "exit": "Exit fullscreen (Esc)",
+    "none": "No other streams open",
+    "drag": "Drag to move",
+    "resize": "Drag to resize"
   }
 }

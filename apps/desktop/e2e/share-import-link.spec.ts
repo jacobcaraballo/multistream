@@ -1,4 +1,13 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
+
+// share and import links live in Settings → Data
+async function openLinkDialog(page: Page, testId: "share-dialog-btn" | "import-dialog-btn") {
+  await page.getByTestId("settings-btn").click();
+  await page.getByRole("tab", { name: "Data" }).click();
+  await page.getByTestId(testId).click();
+  // Settings fades out while the link dialog opens; wait so only one dialog is on screen
+  await expect(page.getByRole("dialog", { name: "Settings" })).toHaveCount(0);
+}
 
 test.describe("Share and Import Link E2E Test", () => {
   test.beforeEach(async ({ page }) => {
@@ -28,7 +37,7 @@ test.describe("Share and Import Link E2E Test", () => {
     await expect(page.getByTestId("stream-item-xqc")).toBeVisible();
 
     // Act: open share dialog
-    await page.getByTestId("share-dialog-btn").click();
+    await openLinkDialog(page, "share-dialog-btn");
     await expect(page.getByRole("dialog")).toBeVisible();
 
     // Assert: share link input contains the stream
@@ -53,7 +62,7 @@ test.describe("Share and Import Link E2E Test", () => {
     page,
   }) => {
     // Act: open share dialog when no streams are selected
-    await page.getByTestId("share-dialog-btn").click();
+    await openLinkDialog(page, "share-dialog-btn");
     await expect(page.getByRole("dialog")).toBeVisible();
 
     // Assert: share link input displays warning message
@@ -71,7 +80,7 @@ test.describe("Share and Import Link E2E Test", () => {
 
   test("import link: imports valid link -> streams appear in grid", async ({ page }) => {
     // Act: open import dialog and submit a valid link
-    await page.getByTestId("import-dialog-btn").click();
+    await openLinkDialog(page, "import-dialog-btn");
     await expect(page.getByRole("dialog")).toBeVisible();
 
     const importLink = "https://multistreams-pi.vercel.app/?streams=kick:xqc,twitch:shroud";
@@ -89,7 +98,7 @@ test.describe("Share and Import Link E2E Test", () => {
     page,
   }) => {
     // Act: open import dialog
-    await page.getByTestId("import-dialog-btn").click();
+    await openLinkDialog(page, "import-dialog-btn");
     await expect(page.getByRole("dialog")).toBeVisible();
 
     // Act: fill and submit invalid link
@@ -104,7 +113,7 @@ test.describe("Share and Import Link E2E Test", () => {
 
   test("import link: imports custom streams -> custom streams appear in grid", async ({ page }) => {
     // Act: open import dialog
-    await page.getByTestId("import-dialog-btn").click();
+    await openLinkDialog(page, "import-dialog-btn");
     await expect(page.getByRole("dialog")).toBeVisible();
 
     // Act: fill and submit link containing custom base64 encoded stream

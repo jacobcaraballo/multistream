@@ -7,11 +7,12 @@ import {
   TooltipTrigger,
 } from "../../components/ui/tooltip";
 import { Skeleton } from "../../components/ui/skeleton";
-import { Radio, ChevronLeft, ChevronRight, RefreshCw, WifiOff } from "@lucide/vue";
+import { Radio, ChevronLeft, ChevronRight, ChevronDown, RefreshCw, WifiOff } from "@lucide/vue";
 import TwitchIcon from "../../components/icons/TwitchIcon.vue";
 import KickIcon from "../../components/icons/KickIcon.vue";
 import YoutubeIcon from "../../components/icons/YoutubeIcon.vue";
 import LoginPrompt from "../../components/chat/LoginPrompt.vue";
+import SidebarToolbar from "./SidebarToolbar.vue";
 import { useI18n } from "vue-i18n";
 import { useFollowedChannels, type FollowedChannel } from "../../composables/useFollowedChannels";
 import { useTwitchAuth } from "../../composables/useTwitchAuth";
@@ -21,12 +22,17 @@ import { useNetworkStatus } from "../../composables/useNetworkStatus";
 import { useImmersiveMode } from "@/composables/useImmersiveMode";
 import { CDN_CONFIG } from "@/config/cdn";
 
-const { channels, isLoading, isInitialLoading, platformFilter, refresh } = useFollowedChannels();
+const { channels, offlineChannels, isLoading, isInitialLoading, platformFilter, refresh } =
+  useFollowedChannels();
 const { isOnline } = useNetworkStatus();
 const { addStream } = useStreams();
 const { t, locale } = useI18n();
 const { authenticated: isTwitchAuth, isReady: isTwitchAuthReady } = useTwitchAuth();
-const { followedSidebarOpen: isOpen, toggleFollowedSidebar } = usePreferences();
+const {
+  followedSidebarOpen: isOpen,
+  followedOfflineOpen: isOfflineOpen,
+  toggleFollowedSidebar,
+} = usePreferences();
 const { immersiveModeEnabled, isLeftPanelRevealed, revealLeftPanel, scheduleHideLeftPanel } =
   useImmersiveMode();
 
@@ -68,6 +74,40 @@ const onAddClick = (channel: FollowedChannel) => {
     addStream(channel.id, channel.platform);
   }
 };
+
+// offline channels open the VOD browser on their past broadcasts
+const openVods = (channel: FollowedChannel) => {
+  window.dispatchEvent(
+    new CustomEvent("multistream-open-vods", {
+      detail: { platform: channel.platform, channel: channel.id },
+    })
+  );
+};
+
+const RELATIVE_UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
+  ["year", 365 * 24 * 3600],
+  ["month", 30 * 24 * 3600],
+  ["week", 7 * 24 * 3600],
+  ["day", 24 * 3600],
+  ["hour", 3600],
+  ["minute", 60],
+];
+
+const relativeFormat = computed(
+  () => new Intl.RelativeTimeFormat(locale.value, { numeric: "auto" })
+);
+
+const lastLiveLabel = (channel: FollowedChannel) => {
+  const startedMs = channel.lastLiveAt ? Date.parse(channel.lastLiveAt) : NaN;
+  if (!Number.isFinite(startedMs)) return t("sidebar.noRecentBroadcast");
+  const agoS = Math.max(0, (Date.now() - startedMs) / 1000);
+  const [unit, size] = RELATIVE_UNITS.find(([, s]) => agoS >= s) ?? ["minute", 60];
+  const time = relativeFormat.value.format(-Math.floor(agoS / size), unit);
+  return t("sidebar.lastLive", { time });
+};
+
+const offlineTitle = (channel: FollowedChannel) =>
+  `${channel.displayName} · ${lastLiveLabel(channel)} · ${t("sidebar.browseVods")}`;
 
 const formatViewers = (count: number) => {
   return new Intl.NumberFormat(locale.value, {
@@ -160,6 +200,9 @@ const handleAvatarError = (event: Event, displayName: string) => {
 
       <button
         class="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-[#1f2227] transition-colors"
+        :aria-label="isOpen ? t('sidebar.collapse') : t('sidebar.expand')"
+        :aria-expanded="isOpen"
+        data-testid="followed-sidebar-toggle"
         @click="toggleSidebar"
       >
         <ChevronLeft v-if="isOpen" class="w-4 h-4" />
@@ -226,7 +269,7 @@ const handleAvatarError = (event: Event, displayName: string) => {
         :class="{ 'pointer-events-none opacity-40': isLoading || !isOnline }"
         :disabled="isLoading || !isOnline"
         :title="!isOnline ? t('network.offlineTooltip') : undefined"
-        @click="refresh"
+        @click="refresh(true)"
       >
         <RefreshCw class="w-3.5 h-3.5" :class="{ 'animate-spin text-gray-400': isLoading }" />
       </button>
@@ -259,7 +302,7 @@ const handleAvatarError = (event: Event, displayName: string) => {
           </div>
         </template>
 
-        <template v-else-if="liveChannels.length > 0">
+        <template v-if="!isInitialLoading && liveChannels.length > 0">
           <Tooltip v-for="channel in liveChannels" :key="channel.platform + '-' + channel.id">
             <TooltipTrigger as-child>
               <div
@@ -338,7 +381,16 @@ const handleAvatarError = (event: Event, displayName: string) => {
         </template>
 
         <div
-          v-else
+          v-else-if="!isInitialLoading && offlineChannels.length > 0"
+          v-show="isOpen"
+          class="px-2 pt-1.5 pb-1 text-[11px] text-gray-500 select-none"
+          data-testid="followed-none-live"
+        >
+          {{ t("sidebar.noChannels") }}
+        </div>
+
+        <div
+          v-else-if="!isInitialLoading"
           class="flex-1 flex flex-col items-center justify-center p-4 text-center select-none"
         >
           <template v-if="isOpen">
@@ -361,6 +413,61 @@ const handleAvatarError = (event: Event, displayName: string) => {
             </TooltipContent>
           </Tooltip>
         </div>
+
+        <!-- followed channels that are offline: open their past broadcasts -->
+        <template v-if="!isInitialLoading && offlineChannels.length > 0">
+          <button
+            type="button"
+            class="mt-1.5 flex items-center rounded-md text-gray-500 hover:text-gray-300 hover:bg-[#1f2227] transition-colors cursor-pointer"
+            :class="isOpen ? 'gap-1.5 px-1.5 py-1' : 'justify-center py-1'"
+            :aria-expanded="isOfflineOpen"
+            :aria-label="isOfflineOpen ? t('sidebar.hideOffline') : t('sidebar.showOffline')"
+            :title="
+              isOpen ? undefined : t('sidebar.offlineCount', { count: offlineChannels.length })
+            "
+            data-testid="offline-channels-toggle"
+            @click="isOfflineOpen = !isOfflineOpen"
+          >
+            <ChevronDown
+              class="w-3.5 h-3.5 shrink-0 transition-transform duration-200"
+              :class="{ '-rotate-90': !isOfflineOpen }"
+            />
+            <span
+              v-if="isOpen"
+              class="text-[10px] font-semibold tracking-widest uppercase truncate"
+              >{{ t("sidebar.offlineCount", { count: offlineChannels.length }) }}</span
+            >
+          </button>
+
+          <template v-if="isOfflineOpen">
+            <button
+              v-for="channel in offlineChannels"
+              :key="'offline-' + channel.id"
+              type="button"
+              class="offline-row flex items-center gap-2 p-1 rounded-md cursor-pointer group text-left w-full hover:bg-[#1f2227] transition-colors"
+              :title="offlineTitle(channel)"
+              :data-testid="`offline-channel-${channel.id}`"
+              @click="openVods(channel)"
+            >
+              <img
+                loading="lazy"
+                :src="channel.avatarUrl || CDN_CONFIG.avatarFallback(channel.displayName)"
+                :alt="channel.displayName"
+                class="w-7 h-7 rounded-full block object-cover shrink-0 grayscale opacity-60 transition group-hover:grayscale-0 group-hover:opacity-100"
+                @error="handleAvatarError($event, channel.displayName)"
+              />
+              <div v-if="isOpen" class="flex-1 min-w-0">
+                <span
+                  class="block text-sm font-medium text-gray-400 group-hover:text-gray-200 truncate"
+                  >{{ channel.displayName }}</span
+                >
+                <span class="block text-xs text-gray-500 truncate">{{
+                  lastLiveLabel(channel)
+                }}</span>
+              </div>
+            </button>
+          </template>
+        </template>
       </div>
     </TooltipProvider>
 
@@ -375,6 +482,8 @@ const handleAvatarError = (event: Event, displayName: string) => {
         @connect="openTwitchAuthDialog"
       />
     </Transition>
+
+    <SidebarToolbar :expanded="isOpen" />
   </div>
 </template>
 
@@ -391,6 +500,12 @@ const handleAvatarError = (event: Event, displayName: string) => {
 }
 .custom-scrollbar:hover::-webkit-scrollbar-thumb {
   background: #3a3f4b;
+}
+
+/* hundreds of followed channels: skip layout and paint for rows scrolled out of view */
+.offline-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 36px;
 }
 
 .avatar-border {

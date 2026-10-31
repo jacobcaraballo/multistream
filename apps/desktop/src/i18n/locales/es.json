@@ -227,6 +227,10 @@
       "back": "Segundos que retrocede la flecha izquierda",
       "forward": "Segundos que avanza la flecha derecha",
       "secondsUnit": "s"
+    },
+    "shareLink": {
+      "title": "Enlaces para compartir",
+      "description": "Envía tus transmisiones abiertas como un enlace o abre un enlace que alguien compartió."
     }
   },
   "share": {
@@ -268,7 +272,8 @@
       "reload": "Recargar stream",
       "vods": "Ver VODs",
       "chatOverlay": "Mostrar chat sobre el stream",
-      "hideChatOverlay": "Ocultar chat sobre el stream"
+      "hideChatOverlay": "Ocultar chat sobre el stream",
+      "fullscreen": "Pantalla completa"
     }
   },
   "empty": {
@@ -443,7 +448,7 @@
       "title": "Añadir Transmisiones",
       "description": "Arma tu cuadrícula con transmisiones en vivo de Twitch, Kick, YouTube o enlaces integrados personalizados en una sola pantalla y con conexión directa a cada plataforma.",
       "customPlatform": "Personalizado",
-      "hint": "Pulsa {key} o haz clic en '+' en la barra lateral derecha para añadir canales. Con varias transmisiones abiertas, arrastra los cuadros para reordenar la cuadrícula o pulsa F sobre una transmisión para destacarla."
+      "hint": "Pulsa {key} o haz clic en '+' en la parte inferior de la barra lateral izquierda para añadir canales. Con varias transmisiones abiertas, arrastra los cuadros para reordenar la cuadrícula o pulsa F sobre una transmisión para destacarla."
     },
     "step2": {
       "title": "Control de Chat",
@@ -511,7 +516,15 @@
     "loginTitle": "Conecta tu cuenta",
     "loginSubtitle": "Ver los canales que sigues",
     "noChannels": "No hay canales en directo",
-    "noChannelsSubtitle": "Añade canales a favoritos o conecta tu cuenta de Twitch."
+    "noChannelsSubtitle": "Añade canales a favoritos o conecta tu cuenta de Twitch.",
+    "collapse": "Contraer barra lateral",
+    "expand": "Expandir barra lateral",
+    "offlineCount": "Desconectados ({count})",
+    "lastLive": "En directo {time}",
+    "noRecentBroadcast": "Sin transmisiones recientes",
+    "browseVods": "Ver transmisiones anteriores",
+    "showOffline": "Mostrar canales desconectados",
+    "hideOffline": "Ocultar canales desconectados"
   },
   "nativePlayer": {
     "live": "EN VIVO",
@@ -622,5 +635,15 @@
   },
   "chatOverlay": {
     "twitchSignIn": "Conecta el chat de Twitch en Ajustes para ver el chat aquí"
+  },
+  "pip": {
+    "title": "Imagen en imagen",
+    "add": "Mostrar sobre la transmisión en pantalla completa",
+    "close": "Quitar de imagen en imagen",
+    "makeMain": "Cambiar por la transmisión en pantalla completa",
+    "exit": "Salir de pantalla completa (Esc)",
+    "none": "No hay otras transmisiones abiertas",
+    "drag": "Arrastra para mover",
+    "resize": "Arrastra para cambiar el tamaño"
   }
 }

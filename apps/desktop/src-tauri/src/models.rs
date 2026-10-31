@@ -18,6 +18,9 @@ pub struct FollowedChannel {
     pub thumbnail_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
+    /// When an offline channel's latest broadcast started (RFC 3339).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_live_at: Option<String>,
 }
 
 #[cfg(test)]
@@ -36,6 +39,7 @@ mod tests {
             game: Some("CS2".to_string()),
             thumbnail_url: None,
             title: Some("Tribo".to_string()),
+            last_live_at: None,
         };
 
         let json = serde_json::to_string(&channel).unwrap();

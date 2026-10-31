@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { ref, onMounted, onUnmounted, computed, defineAsyncComponent, watch } from "vue";
+import { ref, computed, defineAsyncComponent, watch } from "vue";
 import { usePreferences } from "@/composables/usePreferences";
 import { useStreams, type Stream } from "@/composables/useStreams";
 import { useLiveStatus } from "@/composables/useLiveStatus";
@@ -7,7 +7,6 @@ import { useTranscription } from "@/composables/useTranscription";
 import { useUnifiedChatState } from "@/composables/useUnifiedChatState";
 import { useImmersiveMode } from "@/composables/useImmersiveMode";
 import { isTauri } from "@/composables/useUpdater";
-import { Button } from "@/components/ui/button";
 const KickChat = defineAsyncComponent(() => import("@/components/chat/KickChat.vue"));
 const TwitchChat = defineAsyncComponent(() => import("@/components/chat/TwitchChat.vue"));
 const YoutubeChat = defineAsyncComponent(() => import("@/components/chat/YoutubeChat.vue"));
@@ -15,17 +14,8 @@ const UnifiedChat = defineAsyncComponent(() => import("@/components/chat/Unified
 const TranscriptView = defineAsyncComponent(() => import("@/components/chat/TranscriptView.vue"));
 const VodChatReplay = defineAsyncComponent(() => import("@/components/chat/VodChatReplay.vue"));
 
-const AddDialog = defineAsyncComponent(() => import("@/components/dialogs/AddDialog.vue"));
-const ShareDialog = defineAsyncComponent(() => import("@/components/dialogs/ShareDialog.vue"));
-const ImportDialog = defineAsyncComponent(() => import("@/components/dialogs/ImportDialog.vue"));
-const VodDialog = defineAsyncComponent(() => import("@/components/dialogs/VodDialog.vue"));
-const SettingsDialog = defineAsyncComponent(
-  () => import("@/components/dialogs/SettingsDialog.vue")
-);
-
 import { UNIFIED_CHAT_ID } from "@/composables/useUnifiedChat";
 import { VOD_CHAT_ID } from "@/composables/useVodChatReplay";
-import { isVodPlatform, type VodPlatform } from "@/lib/vod";
 import { KickIcon, TwitchIcon, YoutubeIcon, CustomIcon } from "@/components/icons";
 
 const platformIcons: Record<string, any> = {
@@ -35,17 +25,7 @@ const platformIcons: Record<string, any> = {
   custom: CustomIcon,
 };
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  UserPlus2,
-  Settings,
-  Share2,
-  ImportIcon as Import,
-  PanelRightClose,
-  Loader2,
-  Maximize2,
-  Minimize2,
-  Clapperboard,
-} from "@lucide/vue";
+import { PanelRightClose, Loader2, Clapperboard } from "@lucide/vue";
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import {
   Select,
@@ -56,52 +36,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const addDialogOpen = ref(false);
-const shareDialogOpen = ref(false);
-const importDialogOpen = ref(false);
-const settingsDialogOpen = ref(false);
-const vodDialogOpen = ref(false);
-const hasOpenedVods = ref(false);
-const vodDialogTarget = ref<{ platform: VodPlatform; channel: string } | null>(null);
-
-const hasOpenedAdd = ref(false);
-const hasOpenedShare = ref(false);
-const hasOpenedImport = ref(false);
-const hasOpenedSettings = ref(false);
-
-watch(
-  addDialogOpen,
-  (v) => {
-    if (v) hasOpenedAdd.value = true;
-  },
-  { immediate: true }
-);
-watch(
-  shareDialogOpen,
-  (v) => {
-    if (v) hasOpenedShare.value = true;
-  },
-  { immediate: true }
-);
-watch(
-  importDialogOpen,
-  (v) => {
-    if (v) hasOpenedImport.value = true;
-  },
-  { immediate: true }
-);
-watch(
-  settingsDialogOpen,
-  (v) => {
-    if (v) hasOpenedSettings.value = true;
-  },
-  { immediate: true }
-);
-watch(vodDialogOpen, (v) => {
-  if (v) hasOpenedVods.value = true;
-});
-
-const appVersion = import.meta.env.VITE_APP_VERSION;
 const sidebarMode = ref<"chat" | "transcript">("chat");
 
 const hasLoadedUnifiedChat = ref(false);
@@ -116,13 +50,8 @@ const hasVods = computed(() => streams.value.some((s) => s.vod));
 const { unifiedChatState } = useUnifiedChatState();
 const { selectedChat, sidebarOpen } = usePreferences();
 
-const {
-  immersiveModeEnabled,
-  isRightPanelRevealed,
-  revealRightPanel,
-  scheduleHideRightPanel,
-  toggleImmersiveMode,
-} = useImmersiveMode();
+const { immersiveModeEnabled, isRightPanelRevealed, revealRightPanel, scheduleHideRightPanel } =
+  useImmersiveMode();
 
 const isSelectOpen = ref(false);
 
@@ -153,13 +82,6 @@ watch(
   },
   { immediate: true }
 );
-const handleOpenChangelog = () => {
-  window.dispatchEvent(
-    new CustomEvent("multistream-show-dialog", {
-      detail: "changelog",
-    })
-  );
-};
 
 watch(
   chatableStreams,
@@ -241,44 +163,6 @@ const getStreamDisplayName = (stream: Stream) => {
   }
   return stream.displayName || stream.channel;
 };
-
-function openAddDialog() {
-  addDialogOpen.value = true;
-}
-
-defineExpose({ openAddDialog });
-
-function openVodDialog(target: { platform: VodPlatform; channel: string } | null = null) {
-  vodDialogTarget.value = target;
-  vodDialogOpen.value = true;
-}
-
-function handleOpenVodsEvent(e: Event) {
-  const detail = (e as CustomEvent<{ platform?: string; channel?: string }>).detail;
-  const platform = detail?.platform;
-  openVodDialog(
-    platform && detail.channel && isVodPlatform(platform)
-      ? { platform, channel: detail.channel }
-      : null
-  );
-}
-
-function handleShortcutEvent(e: Event) {
-  const evt = e as CustomEvent;
-  if (evt.detail === "add-stream") {
-    openAddDialog();
-  }
-}
-
-onMounted(() => {
-  window.addEventListener("multistream-show-dialog", handleShortcutEvent);
-  window.addEventListener("multistream-open-vods", handleOpenVodsEvent);
-});
-
-onUnmounted(() => {
-  window.removeEventListener("multistream-show-dialog", handleShortcutEvent);
-  window.removeEventListener("multistream-open-vods", handleOpenVodsEvent);
-});
 </script>
 
 <template>
@@ -306,106 +190,79 @@ onUnmounted(() => {
       }"
     >
       <!-- stream selector -->
-      <div class="px-4 pt-3.5 pb-3.5 border-b border-[#1f2227]">
-        <Tabs v-if="isTauri() && isSupported" v-model="sidebarMode" class="w-full">
-          <TabsList class="grid w-full grid-cols-2 bg-[#1f2227]">
-            <TabsTrigger
-              value="chat"
-              class="data-[state=active]:bg-[#2a2d33] data-[state=active]:text-white text-gray-400"
-            >
-              {{ $t("chat.tabs.chat") }}
-            </TabsTrigger>
-            <TabsTrigger
-              v-if="isSupported"
-              value="transcript"
-              class="data-[state=active]:bg-[#2a2d33] data-[state=active]:text-white text-gray-400 flex items-center justify-center gap-1.5"
-            >
-              <span>{{ $t("chat.tabs.transcript") }}</span>
-              <span
-                v-if="transcriptionActive"
-                class="w-3 h-3 flex items-center justify-center shrink-0"
+      <div class="px-4 pt-3.5 pb-3.5 border-b border-[#1f2227] flex items-start gap-1.5">
+        <TooltipProvider v-if="!immersiveModeEnabled" :delay-duration="300">
+          <Tooltip :disable-hoverable-content="true">
+            <TooltipTrigger as-child>
+              <button
+                type="button"
+                data-testid="hide-sidebar-btn"
+                :aria-label="$t('hide.tooltip')"
+                class="shrink-0 h-9 w-7 -ml-2 flex items-center justify-center rounded-md text-gray-400 hover:text-white hover:bg-[#1f2227] transition-colors cursor-pointer"
+                @click="sidebarOpen = false"
               >
-                <Loader2
-                  v-if="transcriptionStatus === 'processing'"
-                  class="h-3 w-3 animate-spin text-green-500"
-                />
-                <span
-                  v-else
-                  class="h-1.5 w-1.5 rounded-full"
-                  :class="{
-                    'bg-green-500': transcriptionStatus === 'active',
-                    'bg-red-400': transcriptionStatus === 'error',
-                  }"
-                />
-              </span>
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+                <PanelRightClose class="w-4 h-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p>{{ $t("hide.tooltip") }}</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
 
-        <div v-show="sidebarMode === 'chat'" :class="isTauri() && isSupported ? 'mt-2.5' : ''">
-          <Select
-            v-model="selectedChat"
-            @update:open="
-              (val: boolean) => {
-                isSelectOpen = val;
-                if (!val && immersiveModeEnabled) {
-                  scheduleHideRightPanel();
-                }
-              }
-            "
-          >
-            <SelectTrigger
-              class="w-full bg-[#14161a] text-white border-[#2a2d33] hover:border-[#3a3f4b]"
-            >
-              <SelectValue :placeholder="$t('chat.selectPlaceholder')">
-                <div v-if="selectedChat === UNIFIED_CHAT_ID" class="flex items-center gap-2">
-                  <div class="flex items-center -space-x-1 shrink-0">
-                    <component
-                      :is="platformIcons[platform]"
-                      v-for="platform in unifiedChatState.activePlatforms"
-                      :key="platform"
-                      class="w-4 h-4"
-                      :class="{
-                        'text-[#bf94ff]': platform === 'twitch',
-                        'text-[#53fc18]': platform === 'kick',
-                      }"
-                    />
-                  </div>
-                  <span class="truncate">{{ $t("chat.unified.selectorLabel") }}</span>
-                </div>
-                <div v-else-if="selectedChat === VOD_CHAT_ID" class="flex items-center gap-2">
-                  <Clapperboard class="w-4 h-4 shrink-0 text-gray-300" aria-hidden="true" />
-                  <span class="truncate">{{ $t("vods.chat.selectorLabel") }}</span>
-                </div>
-                <div v-else-if="selectedStreamObj" class="flex items-center gap-2">
-                  <component
-                    :is="platformIcons[selectedStreamObj.platform]"
-                    class="w-4 h-4 shrink-0"
+        <div class="flex-1 min-w-0">
+          <Tabs v-if="isTauri() && isSupported" v-model="sidebarMode" class="w-full">
+            <TabsList class="grid w-full grid-cols-2 bg-[#1f2227]">
+              <TabsTrigger
+                value="chat"
+                class="data-[state=active]:bg-[#2a2d33] data-[state=active]:text-white text-gray-400"
+              >
+                {{ $t("chat.tabs.chat") }}
+              </TabsTrigger>
+              <TabsTrigger
+                v-if="isSupported"
+                value="transcript"
+                class="data-[state=active]:bg-[#2a2d33] data-[state=active]:text-white text-gray-400 flex items-center justify-center gap-1.5"
+              >
+                <span>{{ $t("chat.tabs.transcript") }}</span>
+                <span
+                  v-if="transcriptionActive"
+                  class="w-3 h-3 flex items-center justify-center shrink-0"
+                >
+                  <Loader2
+                    v-if="transcriptionStatus === 'processing'"
+                    class="h-3 w-3 animate-spin text-green-500"
                   />
-                  <span class="truncate">{{ getStreamDisplayName(selectedStreamObj) }}</span>
-                </div>
-                <span v-else>{{ $t("chat.selectPlaceholder") }}</span>
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent class="bg-[#14161a] border-[#2a2d33]">
-              <SelectGroup>
-                <SelectItem
-                  v-for="stream in chatableStreams"
-                  :key="stream.id"
-                  :value="`${stream.platform}:${stream.channel}`"
-                  class="text-white focus:bg-[#2a2d33] focus:text-white cursor-pointer"
-                >
-                  <div class="flex items-center gap-2">
-                    <component :is="platformIcons[stream.platform]" class="w-4 h-4 shrink-0" />
-                    <span class="truncate">{{ getStreamDisplayName(stream) }}</span>
-                  </div>
-                </SelectItem>
-                <SelectItem
-                  v-if="unifiedChatState.showUnifiedChat"
-                  :value="UNIFIED_CHAT_ID"
-                  class="text-white focus:bg-[#2a2d33] focus:text-white cursor-pointer border-t border-[#2a2d33] mt-1 pt-1"
-                >
-                  <div class="flex items-center gap-2">
+                  <span
+                    v-else
+                    class="h-1.5 w-1.5 rounded-full"
+                    :class="{
+                      'bg-green-500': transcriptionStatus === 'active',
+                      'bg-red-400': transcriptionStatus === 'error',
+                    }"
+                  />
+                </span>
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          <div v-show="sidebarMode === 'chat'" :class="isTauri() && isSupported ? 'mt-2.5' : ''">
+            <Select
+              v-model="selectedChat"
+              @update:open="
+                (val: boolean) => {
+                  isSelectOpen = val;
+                  if (!val && immersiveModeEnabled) {
+                    scheduleHideRightPanel();
+                  }
+                }
+              "
+            >
+              <SelectTrigger
+                class="w-full bg-[#14161a] text-white border-[#2a2d33] hover:border-[#3a3f4b]"
+              >
+                <SelectValue :placeholder="$t('chat.selectPlaceholder')">
+                  <div v-if="selectedChat === UNIFIED_CHAT_ID" class="flex items-center gap-2">
                     <div class="flex items-center -space-x-1 shrink-0">
                       <component
                         :is="platformIcons[platform]"
@@ -420,21 +277,69 @@ onUnmounted(() => {
                     </div>
                     <span class="truncate">{{ $t("chat.unified.selectorLabel") }}</span>
                   </div>
-                </SelectItem>
-                <SelectItem
-                  v-if="hasVods"
-                  :value="VOD_CHAT_ID"
-                  data-testid="vod-chat-option"
-                  class="text-white focus:bg-[#2a2d33] focus:text-white cursor-pointer border-t border-[#2a2d33] mt-1 pt-1"
-                >
-                  <div class="flex items-center gap-2">
+                  <div v-else-if="selectedChat === VOD_CHAT_ID" class="flex items-center gap-2">
                     <Clapperboard class="w-4 h-4 shrink-0 text-gray-300" aria-hidden="true" />
                     <span class="truncate">{{ $t("vods.chat.selectorLabel") }}</span>
                   </div>
-                </SelectItem>
-              </SelectGroup>
-            </SelectContent>
-          </Select>
+                  <div v-else-if="selectedStreamObj" class="flex items-center gap-2">
+                    <component
+                      :is="platformIcons[selectedStreamObj.platform]"
+                      class="w-4 h-4 shrink-0"
+                    />
+                    <span class="truncate">{{ getStreamDisplayName(selectedStreamObj) }}</span>
+                  </div>
+                  <span v-else>{{ $t("chat.selectPlaceholder") }}</span>
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent class="bg-[#14161a] border-[#2a2d33]">
+                <SelectGroup>
+                  <SelectItem
+                    v-for="stream in chatableStreams"
+                    :key="stream.id"
+                    :value="`${stream.platform}:${stream.channel}`"
+                    class="text-white focus:bg-[#2a2d33] focus:text-white cursor-pointer"
+                  >
+                    <div class="flex items-center gap-2">
+                      <component :is="platformIcons[stream.platform]" class="w-4 h-4 shrink-0" />
+                      <span class="truncate">{{ getStreamDisplayName(stream) }}</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem
+                    v-if="unifiedChatState.showUnifiedChat"
+                    :value="UNIFIED_CHAT_ID"
+                    class="text-white focus:bg-[#2a2d33] focus:text-white cursor-pointer border-t border-[#2a2d33] mt-1 pt-1"
+                  >
+                    <div class="flex items-center gap-2">
+                      <div class="flex items-center -space-x-1 shrink-0">
+                        <component
+                          :is="platformIcons[platform]"
+                          v-for="platform in unifiedChatState.activePlatforms"
+                          :key="platform"
+                          class="w-4 h-4"
+                          :class="{
+                            'text-[#bf94ff]': platform === 'twitch',
+                            'text-[#53fc18]': platform === 'kick',
+                          }"
+                        />
+                      </div>
+                      <span class="truncate">{{ $t("chat.unified.selectorLabel") }}</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem
+                    v-if="hasVods"
+                    :value="VOD_CHAT_ID"
+                    data-testid="vod-chat-option"
+                    class="text-white focus:bg-[#2a2d33] focus:text-white cursor-pointer border-t border-[#2a2d33] mt-1 pt-1"
+                  >
+                    <div class="flex items-center gap-2">
+                      <Clapperboard class="w-4 h-4 shrink-0 text-gray-300" aria-hidden="true" />
+                      <span class="truncate">{{ $t("vods.chat.selectorLabel") }}</span>
+                    </div>
+                  </SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 
@@ -490,170 +395,6 @@ onUnmounted(() => {
           <TranscriptView v-if="hasLoadedTranscript" />
         </div>
       </div>
-
-      <!-- action buttons -->
-      <div class="px-4 py-3.5 border-t border-[#1f2227]">
-        <TooltipProvider>
-          <div class="grid grid-cols-7 gap-2">
-            <Tooltip :disable-hoverable-content="true">
-              <TooltipTrigger as-child>
-                <Button
-                  data-testid="add-stream-btn"
-                  :aria-label="$t('add.tooltip')"
-                  class="group aspect-square h-auto w-full p-0 flex items-center justify-center rounded-xl border-[#2a2d33] bg-[#14161a] hover:bg-[#1c1f24] hover:border-[#3a3f4b] transition-all duration-200"
-                  variant="outline"
-                  @click="addDialogOpen = true"
-                >
-                  <UserPlus2
-                    class="size-4.5 text-white transition-transform duration-300 group-hover:scale-110"
-                  />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{{ $t("add.tooltip") }}</p>
-              </TooltipContent>
-            </Tooltip>
-
-            <Tooltip :disable-hoverable-content="true">
-              <TooltipTrigger as-child>
-                <Button
-                  data-testid="vods-btn"
-                  :aria-label="$t('vods.tooltip')"
-                  class="group aspect-square h-auto w-full p-0 flex items-center justify-center rounded-xl border-[#2a2d33] bg-[#14161a] hover:bg-[#1c1f24] hover:border-[#3a3f4b] transition-all duration-200"
-                  variant="outline"
-                  @click="openVodDialog()"
-                >
-                  <Clapperboard
-                    class="size-4.5 text-white transition-transform duration-300 group-hover:scale-110"
-                  />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{{ $t("vods.tooltip") }}</p>
-              </TooltipContent>
-            </Tooltip>
-
-            <Tooltip :disable-hoverable-content="true">
-              <TooltipTrigger as-child>
-                <Button
-                  class="group aspect-square h-auto w-full p-0 flex items-center justify-center rounded-xl border-[#2a2d33] bg-[#14161a] hover:bg-[#1c1f24] hover:border-[#3a3f4b] transition-all duration-200"
-                  variant="outline"
-                  data-testid="settings-btn"
-                  :aria-label="$t('settings.title')"
-                  @click="settingsDialogOpen = true"
-                >
-                  <Settings
-                    class="size-4.5 text-white transition-transform duration-300 group-hover:rotate-90"
-                  />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{{ $t("settings.title") }}</p>
-              </TooltipContent>
-            </Tooltip>
-
-            <Tooltip :disable-hoverable-content="true">
-              <TooltipTrigger as-child>
-                <Button
-                  data-testid="share-dialog-btn"
-                  :aria-label="$t('share.tooltip')"
-                  class="group aspect-square h-auto w-full p-0 flex items-center justify-center rounded-xl border-[#2a2d33] bg-[#14161a] hover:bg-[#1c1f24] hover:border-[#3a3f4b] transition-all duration-200"
-                  variant="outline"
-                  @click="shareDialogOpen = true"
-                >
-                  <Share2
-                    class="size-4.5 text-white transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:scale-110"
-                  />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{{ $t("share.tooltip") }}</p>
-              </TooltipContent>
-            </Tooltip>
-
-            <Tooltip :disable-hoverable-content="true">
-              <TooltipTrigger as-child>
-                <Button
-                  data-testid="import-dialog-btn"
-                  :aria-label="$t('import.tooltip')"
-                  class="group aspect-square h-auto w-full p-0 flex items-center justify-center rounded-xl border-[#2a2d33] bg-[#14161a] hover:bg-[#1c1f24] hover:border-[#3a3f4b] transition-all duration-200"
-                  variant="outline"
-                  @click="importDialogOpen = true"
-                >
-                  <Import
-                    class="size-4.5 text-white transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:scale-110"
-                  />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{{ $t("import.tooltip") }}</p>
-              </TooltipContent>
-            </Tooltip>
-
-            <Tooltip :disable-hoverable-content="true">
-              <TooltipTrigger as-child>
-                <Button
-                  data-testid="immersive-mode-btn"
-                  :aria-label="
-                    immersiveModeEnabled ? $t('immersive.exitTooltip') : $t('immersive.tooltip')
-                  "
-                  class="group aspect-square h-auto w-full p-0 flex items-center justify-center rounded-xl border-[#2a2d33] bg-[#14161a] hover:bg-[#1c1f24] hover:border-[#3a3f4b] transition-all duration-200"
-                  variant="outline"
-                  @click="toggleImmersiveMode"
-                >
-                  <component
-                    :is="immersiveModeEnabled ? Minimize2 : Maximize2"
-                    class="size-4.5 text-white transition-transform duration-300 group-hover:scale-110"
-                  />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>
-                  {{ immersiveModeEnabled ? $t("immersive.exitTooltip") : $t("immersive.tooltip") }}
-                </p>
-              </TooltipContent>
-            </Tooltip>
-
-            <Tooltip :disable-hoverable-content="true">
-              <TooltipTrigger as-child>
-                <Button
-                  class="group aspect-square h-auto w-full p-0 flex items-center justify-center rounded-xl border-[#2a2d33] bg-[#14161a] hover:bg-[#1c1f24] hover:border-[#3a3f4b] transition-all duration-200"
-                  variant="outline"
-                  :aria-label="$t('hide.tooltip')"
-                  @click="sidebarOpen = !sidebarOpen"
-                >
-                  <PanelRightClose
-                    class="size-4.5 text-white transition-transform duration-300 group-hover:translate-x-0.5 group-hover:scale-110"
-                  />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{{ $t("hide.tooltip") }}</p>
-              </TooltipContent>
-            </Tooltip>
-          </div>
-        </TooltipProvider>
-
-        <!-- version -->
-        <div v-if="appVersion" class="mt-3.5 flex items-center justify-center gap-3">
-          <div class="h-px flex-1 bg-linear-to-r from-transparent to-[#2a2d33]" />
-          <button
-            type="button"
-            class="text-[10px] font-semibold tracking-widest uppercase text-gray-400 hover:text-gray-200 transition-colors duration-200 select-none cursor-default"
-            @click="handleOpenChangelog"
-          >
-            v{{ appVersion }}
-          </button>
-          <div class="h-px flex-1 bg-linear-to-l from-transparent to-[#2a2d33]" />
-        </div>
-      </div>
     </div>
   </aside>
-
-  <!-- dialogs -->
-  <AddDialog v-if="hasOpenedAdd" v-model:open="addDialogOpen" />
-  <ShareDialog v-if="hasOpenedShare" v-model:open="shareDialogOpen" />
-  <ImportDialog v-if="hasOpenedImport" v-model:open="importDialogOpen" />
-  <SettingsDialog v-if="hasOpenedSettings" v-model:open="settingsDialogOpen" />
-  <VodDialog v-if="hasOpenedVods" v-model:open="vodDialogOpen" :target="vodDialogTarget" />
 </template>

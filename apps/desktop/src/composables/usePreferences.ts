@@ -4,6 +4,7 @@ export interface Preferences {
   selectedChat: string;
   sidebarOpen: boolean;
   followedSidebarOpen: boolean;
+  followedOfflineOpen: boolean;
   notificationsEnabled: boolean;
   onboardingCompleted: boolean;
   pendingChangelogVersion: string;
@@ -33,6 +34,7 @@ const defaultPreferences: Preferences = {
   selectedChat: "",
   sidebarOpen: true,
   followedSidebarOpen: false,
+  followedOfflineOpen: true,
   notificationsEnabled: true,
   onboardingCompleted: false,
   pendingChangelogVersion: "",
@@ -71,6 +73,14 @@ const _usePreferences = () => {
   const followedSidebarOpen = useStorage<boolean>(
     "preferences.followedSidebarOpen",
     defaultPreferences.followedSidebarOpen
+  );
+
+  /**
+   * @brief Offline followed channels section expanded in the left sidebar
+   */
+  const followedOfflineOpen = useStorage<boolean>(
+    "preferences.followedOfflineOpen",
+    defaultPreferences.followedOfflineOpen
   );
 
   /**
@@ -254,6 +264,7 @@ const _usePreferences = () => {
     selectedChat.value = defaultPreferences.selectedChat;
     sidebarOpen.value = defaultPreferences.sidebarOpen;
     followedSidebarOpen.value = defaultPreferences.followedSidebarOpen;
+    followedOfflineOpen.value = defaultPreferences.followedOfflineOpen;
     notificationsEnabled.value = defaultPreferences.notificationsEnabled;
     onboardingCompleted.value = defaultPreferences.onboardingCompleted;
     pendingChangelogVersion.value = defaultPreferences.pendingChangelogVersion;
@@ -274,6 +285,7 @@ const _usePreferences = () => {
     selectedChat,
     sidebarOpen,
     followedSidebarOpen,
+    followedOfflineOpen,
     notificationsEnabled,
     onboardingCompleted,
     pendingChangelogVersion,

@@ -227,6 +227,10 @@
       "back": "Sol okun geri atlattığı saniye",
       "forward": "Sağ okun ileri atlattığı saniye",
       "secondsUnit": "sn"
+    },
+    "shareLink": {
+      "title": "Paylaşım bağlantıları",
+      "description": "Açık yayınlarınızı bağlantı olarak gönderin veya paylaşılan bir bağlantıyı açın."
     }
   },
   "share": {
@@ -268,7 +272,8 @@
       "reload": "Yayını yeniden yükle",
       "vods": "VOD'lara göz at",
       "chatOverlay": "Sohbeti yayının üzerinde göster",
-      "hideChatOverlay": "Yayın üzerindeki sohbeti gizle"
+      "hideChatOverlay": "Yayın üzerindeki sohbeti gizle",
+      "fullscreen": "Tam ekran"
     }
   },
   "empty": {
@@ -443,7 +448,7 @@
       "title": "Yayın Ekle",
       "description": "Twitch, Kick, YouTube veya özel yerleştirme bağlantılarından gelen canlı yayınları doğrudan platform bağlantılarıyla tek bir ekranda birleştirin.",
       "customPlatform": "Özel",
-      "hint": "Kanal eklemek için {key} tuşuna basın veya sağ kenar çubuğundaki '+' düğmesine tıklayın. Birden fazla yayın açıkken kareleri sürükleyerek sıralamayı değiştirebilir veya bir yayının üzerine gelip F tuşuna basarak onu büyütebilirsiniz."
+      "hint": "Kanal eklemek için {key} tuşuna basın veya sol kenar çubuğunun altındaki '+' düğmesine tıklayın. Birden fazla yayın açıkken kareleri sürükleyerek sıralamayı değiştirebilir veya bir yayının üzerine gelip F tuşuna basarak onu büyütebilirsiniz."
     },
     "step2": {
       "title": "Sohbet Kontrolü",
@@ -511,7 +516,15 @@
     "loginTitle": "Hesabınızı bağlayın",
     "loginSubtitle": "Takip ettiğiniz kanalları görün",
     "noChannels": "Çevrimiçi kanal yok",
-    "noChannelsSubtitle": "Kanalları favorilere ekleyin veya Twitch hesabınızı bağlayın."
+    "noChannelsSubtitle": "Kanalları favorilere ekleyin veya Twitch hesabınızı bağlayın.",
+    "collapse": "Kenar çubuğunu daralt",
+    "expand": "Kenar çubuğunu genişlet",
+    "offlineCount": "Çevrimdışı ({count})",
+    "lastLive": "Son yayın {time}",
+    "noRecentBroadcast": "Yakın zamanda yayın yok",
+    "browseVods": "Geçmiş yayınlara göz at",
+    "showOffline": "Çevrimdışı kanalları göster",
+    "hideOffline": "Çevrimdışı kanalları gizle"
   },
   "nativePlayer": {
     "live": "CANLI",
@@ -622,5 +635,15 @@
   },
   "chatOverlay": {
     "twitchSignIn": "Sohbeti burada görmek için Ayarlar'dan Twitch sohbetini bağlayın"
+  },
+  "pip": {
+    "title": "Resim içinde resim",
+    "add": "Tam ekran yayının üzerinde göster",
+    "close": "Resim içinde resimden kaldır",
+    "makeMain": "Tam ekran yayınla yer değiştir",
+    "exit": "Tam ekrandan çık (Esc)",
+    "none": "Açık başka yayın yok",
+    "drag": "Taşımak için sürükleyin",
+    "resize": "Boyutlandırmak için sürükleyin"
   }
 }

@@ -373,18 +373,17 @@ pub fn init_stored_auth(app: &AppHandle) -> Option<TwitchAuthInfo> {
     oauth::load_auth(app)
 }
 
-#[tauri::command]
-pub async fn twitch_get_followed_streams(
-    app: AppHandle,
-    state: State<'_, TwitchState>,
-) -> Result<Vec<FollowedChannel>, TwitchError> {
-    let auth = {
-        let auth_guard = state.auth.lock().await;
-        auth_guard.clone()
-    };
-
-    let auth =
-        auth.ok_or_else(|| TwitchError::OAuth("Not authenticated with Twitch".to_string()))?;
+/// An HTTP client plus a validated (refreshed if needed) token, or the auth error to report.
+async fn authed_client(
+    app: &AppHandle,
+    state: &TwitchState,
+) -> Result<(reqwest::Client, TwitchAuthInfo), TwitchError> {
+    let auth = state
+        .auth
+        .lock()
+        .await
+        .clone()
+        .ok_or_else(|| TwitchError::OAuth("Not authenticated with Twitch".to_string()))?;
 
     let http = reqwest::Client::builder()
         .use_rustls_tls()
@@ -392,35 +391,41 @@ pub async fn twitch_get_followed_streams(
         .build()
         .map_err(TwitchError::Http)?;
 
-    let auth = match try_refresh_if_needed(&app, auth, &state, &http).await {
-        Ok(auth) => auth,
+    match try_refresh_if_needed(app, auth, state, &http).await {
+        Ok(auth) => Ok((http, auth)),
         Err(TwitchError::TokenRefreshFailed) => {
-            revoke_auth_and_notify(&app, &state).await;
-            return Err(TwitchError::TokenRefreshFailed);
+            revoke_auth_and_notify(app, state).await;
+            Err(TwitchError::TokenRefreshFailed)
         }
-        Err(e) => return Err(e),
-    };
+        Err(e) => Err(e),
+    }
+}
 
-    let streams_url = format!(
-        "https://api.twitch.tv/helix/streams/followed?user_id={}&first=100",
-        auth.user_id
-    );
+// a safety stop for accounts that follow thousands of channels (100 per page)
+const MAX_HELIX_PAGES: usize = 50;
 
-    let mut live_streams = Vec::new();
+/// Every item of a paginated Helix list, retrying once with a refreshed token on a 401.
+async fn helix_paginate(
+    app: &AppHandle,
+    state: &TwitchState,
+    http: &reqwest::Client,
+    base_url: &str,
+    access_token: &mut String,
+) -> Result<Vec<Value>, TwitchError> {
+    let mut items = Vec::new();
     let mut after = String::new();
-    let mut current_access_token = auth.access_token.clone();
     let mut has_retried_auth = false;
 
-    loop {
+    for _ in 0..MAX_HELIX_PAGES {
         let url = if after.is_empty() {
-            streams_url.clone()
+            base_url.to_string()
         } else {
-            format!("{}&after={}", streams_url, after)
+            format!("{}&after={}", base_url, after)
         };
 
         let res = http
             .get(&url)
-            .bearer_auth(&current_access_token)
+            .bearer_auth(access_token.as_str())
             .header("Client-Id", super::oauth::client_id())
             .send()
             .await
@@ -428,21 +433,23 @@ pub async fn twitch_get_followed_streams(
 
         if res.status() == reqwest::StatusCode::UNAUTHORIZED {
             if has_retried_auth {
-                log::error!("[twitch-streams] 401 persists after token refresh — revoking session permanently");
-                revoke_auth_and_notify(&app, &state).await;
+                log::error!(
+                    "[twitch-helix] 401 persists after token refresh — revoking session permanently"
+                );
+                revoke_auth_and_notify(app, state).await;
                 return Err(TwitchError::TokenRefreshFailed);
             }
             has_retried_auth = true;
 
             let fresh_auth = state.auth.lock().await.clone();
             match fresh_auth {
-                Some(a) => match try_refresh_if_needed(&app, a, &state, &http).await {
+                Some(a) => match try_refresh_if_needed(app, a, state, http).await {
                     Ok(refreshed) => {
-                        current_access_token = refreshed.access_token;
+                        *access_token = refreshed.access_token;
                         continue;
                     }
                     Err(TwitchError::TokenRefreshFailed) => {
-                        revoke_auth_and_notify(&app, &state).await;
+                        revoke_auth_and_notify(app, state).await;
                         return Err(TwitchError::TokenRefreshFailed);
                     }
                     Err(e) => return Err(e),
@@ -455,75 +462,101 @@ pub async fn twitch_get_followed_streams(
 
         if !res.status().is_success() {
             return Err(TwitchError::OAuth(format!(
-                "Failed to fetch streams: {}",
+                "Failed to fetch {}: {}",
+                base_url.split('?').next().unwrap_or(base_url),
                 res.status()
             )));
         }
 
         let json: Value = res.json().await.map_err(TwitchError::Http)?;
-
-        if let Some(data) = json.get("data").and_then(|d| d.as_array()) {
-            if data.is_empty() {
-                break;
-            }
-            for item in data {
-                live_streams.push(item.clone());
-            }
-        } else {
-            break;
+        match json.get("data").and_then(|d| d.as_array()) {
+            Some(data) if !data.is_empty() => items.extend(data.iter().cloned()),
+            _ => break,
         }
 
-        if let Some(cursor) = json
+        match json
             .get("pagination")
             .and_then(|p| p.get("cursor"))
             .and_then(|c| c.as_str())
         {
-            after = cursor.to_string();
-        } else {
-            break;
+            Some(cursor) => after = cursor.to_string(),
+            None => break,
         }
     }
 
-    let mut avatars = std::collections::HashMap::new();
-    for chunk in live_streams.chunks(100) {
-        let mut users_url = "https://api.twitch.tv/helix/users?".to_string();
-        for (i, item) in chunk.iter().enumerate() {
-            if let Some(user_id) = item.get("user_id").and_then(|s| s.as_str()) {
-                if i > 0 {
-                    users_url.push('&');
-                }
-                users_url.push_str(&format!("id={}", user_id));
-            }
-        }
+    Ok(items)
+}
 
-        if users_url.ends_with('?') {
+/// Profile pictures keyed by the `key` field (`id` or `login`) of Helix `/users`.
+async fn fetch_helix_avatars(
+    http: &reqwest::Client,
+    access_token: &str,
+    key: &str,
+    values: &[String],
+) -> std::collections::HashMap<String, String> {
+    let mut avatars = std::collections::HashMap::new();
+    for chunk in values.chunks(100) {
+        let query = chunk
+            .iter()
+            .map(|v| format!("{}={}", key, v))
+            .collect::<Vec<_>>()
+            .join("&");
+        if query.is_empty() {
             continue;
         }
 
         let res = http
-            .get(&users_url)
-            .bearer_auth(&current_access_token)
+            .get(format!("https://api.twitch.tv/helix/users?{}", query))
+            .bearer_auth(access_token)
             .header("Client-Id", super::oauth::client_id())
             .send()
             .await;
 
-        if let Ok(r) = res {
-            if r.status().is_success() {
-                if let Ok(json) = r.json::<Value>().await {
-                    if let Some(data) = json.get("data").and_then(|d| d.as_array()) {
-                        for item in data {
-                            if let (Some(id), Some(avatar)) = (
-                                item.get("id").and_then(|s| s.as_str()),
-                                item.get("profile_image_url").and_then(|s| s.as_str()),
-                            ) {
-                                avatars.insert(id.to_string(), avatar.to_string());
-                            }
-                        }
-                    }
-                }
+        let Ok(res) = res else { continue };
+        if !res.status().is_success() {
+            continue;
+        }
+        let Ok(json) = res.json::<Value>().await else {
+            continue;
+        };
+        for item in json
+            .get("data")
+            .and_then(|d| d.as_array())
+            .into_iter()
+            .flatten()
+        {
+            if let (Some(k), Some(avatar)) = (
+                item.get(key).and_then(|s| s.as_str()),
+                item.get("profile_image_url").and_then(|s| s.as_str()),
+            ) {
+                avatars.insert(k.to_string(), avatar.to_string());
             }
         }
     }
+    avatars
+}
+
+#[tauri::command]
+pub async fn twitch_get_followed_streams(
+    app: AppHandle,
+    state: State<'_, TwitchState>,
+) -> Result<Vec<FollowedChannel>, TwitchError> {
+    let (http, auth) = authed_client(&app, &state).await?;
+
+    let streams_url = format!(
+        "https://api.twitch.tv/helix/streams/followed?user_id={}&first=100",
+        auth.user_id
+    );
+    let mut current_access_token = auth.access_token.clone();
+    let live_streams =
+        helix_paginate(&app, &state, &http, &streams_url, &mut current_access_token).await?;
+
+    let user_ids: Vec<String> = live_streams
+        .iter()
+        .filter_map(|item| item.get("user_id").and_then(|s| s.as_str()))
+        .map(str::to_string)
+        .collect();
+    let avatars = fetch_helix_avatars(&http, &current_access_token, "id", &user_ids).await;
 
     let mut result = Vec::new();
     for live_info in live_streams {
@@ -571,12 +604,167 @@ pub async fn twitch_get_followed_streams(
             game,
             thumbnail_url,
             title,
+            last_live_at: None,
         });
     }
 
     sort_followed_channels(&mut result);
 
     Ok(result)
+}
+
+/// Avatar and last broadcast start of a channel, from Twitch's web GQL.
+#[derive(Debug, Default, PartialEq)]
+pub(crate) struct ChannelDetails {
+    pub avatar_url: Option<String>,
+    pub last_live_at: Option<String>,
+}
+
+/// Every channel the user follows, live or not, newest broadcaster first. Live ones are listed
+/// by `twitch_get_followed_streams` too; the app shows the rest as offline.
+#[tauri::command]
+pub async fn twitch_get_followed_channels(
+    app: AppHandle,
+    state: State<'_, TwitchState>,
+) -> Result<Vec<FollowedChannel>, TwitchError> {
+    let (http, auth) = authed_client(&app, &state).await?;
+
+    let follows_url = format!(
+        "https://api.twitch.tv/helix/channels/followed?user_id={}&first=100",
+        auth.user_id
+    );
+    let mut access_token = auth.access_token.clone();
+    let follows = helix_paginate(&app, &state, &http, &follows_url, &mut access_token).await?;
+    let mut channels = parse_followed_channels(&follows);
+
+    let logins: Vec<String> = channels.iter().map(|c| c.id.clone()).collect();
+    let mut details = std::collections::HashMap::new();
+    for chunk in logins.chunks(100) {
+        match fetch_channel_details(&http, chunk).await {
+            Ok(found) => details.extend(found),
+            Err(err) => log::warn!("[twitch-follows] channel details unavailable: {}", err),
+        }
+    }
+
+    // Helix fills in avatars the web GQL couldn't provide
+    let missing: Vec<String> = logins
+        .iter()
+        .filter(|login| {
+            details
+                .get(*login)
+                .and_then(|d: &ChannelDetails| d.avatar_url.as_ref())
+                .is_none()
+        })
+        .cloned()
+        .collect();
+    let fallback = fetch_helix_avatars(&http, &access_token, "login", &missing).await;
+
+    for channel in &mut channels {
+        let found = details.remove(&channel.id).unwrap_or_default();
+        channel.avatar_url = found
+            .avatar_url
+            .or_else(|| fallback.get(&channel.id).cloned())
+            .unwrap_or_default();
+        channel.last_live_at = found.last_live_at;
+    }
+
+    sort_offline_channels(&mut channels);
+    Ok(channels)
+}
+
+async fn fetch_channel_details(
+    http: &reqwest::Client,
+    logins: &[String],
+) -> Result<std::collections::HashMap<String, ChannelDetails>, TwitchError> {
+    let body = serde_json::json!({
+        "query": "query($logins: [String!]) { users(logins: $logins) { login profileImageURL(width: 70) lastBroadcast { startedAt } } }",
+        "variables": { "logins": logins },
+    });
+    let res = http
+        .post(super::web_session::GQL_URL)
+        .header("Client-ID", super::web_session::WEB_CLIENT_ID)
+        .json(&body)
+        .send()
+        .await
+        .map_err(TwitchError::Http)?;
+    if !res.status().is_success() {
+        return Err(TwitchError::Api(format!(
+            "Twitch GQL HTTP {}",
+            res.status()
+        )));
+    }
+    let json: Value = res.json().await.map_err(TwitchError::Http)?;
+    Ok(parse_channel_details(&json))
+}
+
+/// Followed channels from Helix `/channels/followed` items, without avatars yet.
+pub(crate) fn parse_followed_channels(items: &[Value]) -> Vec<FollowedChannel> {
+    let mut seen = HashSet::new();
+    items
+        .iter()
+        .filter_map(|item| {
+            let login = item.get("broadcaster_login")?.as_str()?.to_lowercase();
+            if login.is_empty() || !seen.insert(login.clone()) {
+                return None;
+            }
+            let display_name = item
+                .get("broadcaster_name")
+                .and_then(|v| v.as_str())
+                .filter(|name| !name.is_empty())
+                .unwrap_or(&login)
+                .to_string();
+            Some(FollowedChannel {
+                id: login,
+                platform: "twitch".to_string(),
+                display_name,
+                avatar_url: String::new(),
+                is_live: false,
+                viewer_count: None,
+                game: None,
+                thumbnail_url: None,
+                title: None,
+                last_live_at: None,
+            })
+        })
+        .collect()
+}
+
+/// Avatars and last broadcast times keyed by lowercase login; unknown users are skipped.
+pub(crate) fn parse_channel_details(
+    json: &Value,
+) -> std::collections::HashMap<String, ChannelDetails> {
+    json.pointer("/data/users")
+        .and_then(|users| users.as_array())
+        .into_iter()
+        .flatten()
+        .filter_map(|user| {
+            let login = user.get("login")?.as_str()?.to_lowercase();
+            let text = |pointer: &str| {
+                user.pointer(pointer)
+                    .and_then(|v| v.as_str())
+                    .filter(|s| !s.is_empty())
+                    .map(str::to_string)
+            };
+            Some((
+                login,
+                ChannelDetails {
+                    avatar_url: text("/profileImageURL"),
+                    last_live_at: text("/lastBroadcast/startedAt"),
+                },
+            ))
+        })
+        .collect()
+}
+
+/// Most recently live first (RFC 3339 UTC strings sort by time), never-live channels last.
+pub(crate) fn sort_offline_channels(channels: &mut [FollowedChannel]) {
+    channels.sort_by(|a, b| {
+        b.last_live_at.cmp(&a.last_live_at).then_with(|| {
+            a.display_name
+                .to_lowercase()
+                .cmp(&b.display_name.to_lowercase())
+        })
+    });
 }
 
 #[tauri::command]
@@ -724,6 +912,83 @@ mod tests {
     use super::*;
 
     #[test]
+    fn should_parse_followed_channels_once_each_with_a_name() {
+        // Arrange
+        let items = vec![
+            serde_json::json!({ "broadcaster_login": "Ibai", "broadcaster_name": "Ibai" }),
+            serde_json::json!({ "broadcaster_login": "ibai", "broadcaster_name": "Ibai" }),
+            serde_json::json!({ "broadcaster_login": "quiet", "broadcaster_name": "" }),
+            serde_json::json!({ "broadcaster_name": "No Login" }),
+        ];
+
+        // Act
+        let channels = parse_followed_channels(&items);
+
+        // Assert
+        let ids: Vec<_> = channels.iter().map(|c| c.id.as_str()).collect();
+        assert_eq!(ids, ["ibai", "quiet"]);
+        assert_eq!(channels[1].display_name, "quiet");
+        assert!(channels
+            .iter()
+            .all(|c| !c.is_live && c.platform == "twitch"));
+    }
+
+    #[test]
+    fn should_read_avatars_and_last_broadcasts_from_gql() {
+        // Arrange
+        let json = serde_json::json!({ "data": { "users": [
+            { "login": "Ibai", "profileImageURL": "https://cdn/ibai.png",
+              "lastBroadcast": { "startedAt": "2026-10-30T19:25:36Z" } },
+            { "login": "newbie", "profileImageURL": "https://cdn/n.png", "lastBroadcast": null },
+            null
+        ] } });
+
+        // Act
+        let details = parse_channel_details(&json);
+
+        // Assert
+        assert_eq!(
+            details.get("ibai"),
+            Some(&ChannelDetails {
+                avatar_url: Some("https://cdn/ibai.png".into()),
+                last_live_at: Some("2026-10-30T19:25:36Z".into()),
+            })
+        );
+        assert_eq!(details["newbie"].last_live_at, None);
+        assert_eq!(details.len(), 2);
+    }
+
+    #[test]
+    fn should_sort_offline_channels_by_most_recent_broadcast() {
+        // Arrange
+        let channel = |id: &str, last: Option<&str>| FollowedChannel {
+            id: id.into(),
+            platform: "twitch".into(),
+            display_name: id.into(),
+            avatar_url: String::new(),
+            is_live: false,
+            viewer_count: None,
+            game: None,
+            thumbnail_url: None,
+            title: None,
+            last_live_at: last.map(str::to_string),
+        };
+        let mut channels = vec![
+            channel("never", None),
+            channel("older", Some("2026-01-02T00:00:00Z")),
+            channel("Alpha", None),
+            channel("recent", Some("2026-10-30T19:25:36Z")),
+        ];
+
+        // Act
+        sort_offline_channels(&mut channels);
+
+        // Assert
+        let ids: Vec<_> = channels.iter().map(|c| c.id.as_str()).collect();
+        assert_eq!(ids, ["recent", "older", "Alpha", "never"]);
+    }
+
+    #[test]
     fn should_format_thumbnail_url_correctly() {
         let url = "https://static-cdn.jtvnw.net/previews-ttv/live_user_gaules-{width}x{height}.jpg";
         let formatted = format_thumbnail_url(url, 320, 180);
@@ -760,6 +1025,7 @@ mod tests {
                 game: None,
                 thumbnail_url: None,
                 title: None,
+                last_live_at: None,
             },
             FollowedChannel {
                 id: "2".to_string(),
@@ -771,6 +1037,7 @@ mod tests {
                 game: None,
                 thumbnail_url: None,
                 title: None,
+                last_live_at: None,
             },
             FollowedChannel {
                 id: "3".to_string(),
@@ -782,6 +1049,7 @@ mod tests {
                 game: None,
                 thumbnail_url: None,
                 title: None,
+                last_live_at: None,
             },
             FollowedChannel {
                 id: "4".to_string(),
@@ -793,6 +1061,7 @@ mod tests {
                 game: None,
                 thumbnail_url: None,
                 title: None,
+                last_live_at: None,
             },
         ];
 
@@ -818,6 +1087,7 @@ mod tests {
                 game: None,
                 thumbnail_url: None,
                 title: None,
+                last_live_at: None,
             },
             FollowedChannel {
                 id: "2".to_string(),
@@ -829,6 +1099,7 @@ mod tests {
                 game: None,
                 thumbnail_url: None,
                 title: None,
+                last_live_at: None,
             },
         ];
 
@@ -851,6 +1122,7 @@ mod tests {
                 game: None,
                 thumbnail_url: None,
                 title: None,
+                last_live_at: None,
             },
             FollowedChannel {
                 id: "2".to_string(),
@@ -862,6 +1134,7 @@ mod tests {
                 game: None,
                 thumbnail_url: None,
                 title: None,
+                last_live_at: None,
             },
             FollowedChannel {
                 id: "3".to_string(),
@@ -873,6 +1146,7 @@ mod tests {
                 game: None,
                 thumbnail_url: None,
                 title: None,
+                last_live_at: None,
             },
         ];
 
@@ -897,6 +1171,7 @@ mod tests {
                 game: None,
                 thumbnail_url: None,
                 title: None,
+                last_live_at: None,
             },
             FollowedChannel {
                 id: "2".to_string(),
@@ -908,6 +1183,7 @@ mod tests {
                 game: None,
                 thumbnail_url: None,
                 title: None,
+                last_live_at: None,
             },
         ];
 
@@ -937,6 +1213,7 @@ mod tests {
             game: None,
             thumbnail_url: None,
             title: None,
+            last_live_at: None,
         }];
 
         sort_followed_channels(&mut channels);

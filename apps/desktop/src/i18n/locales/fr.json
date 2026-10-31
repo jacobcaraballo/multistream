@@ -227,6 +227,10 @@
       "back": "Secondes de recul de la flèche gauche",
       "forward": "Secondes d'avance de la flèche droite",
       "secondsUnit": "s"
+    },
+    "shareLink": {
+      "title": "Liens de partage",
+      "description": "Envoyez vos streams ouverts sous forme de lien, ou ouvrez un lien partagé."
     }
   },
   "share": {
@@ -268,7 +272,8 @@
       "reload": "Recharger le stream",
       "vods": "Parcourir les VODs",
       "chatOverlay": "Afficher le chat sur le stream",
-      "hideChatOverlay": "Masquer le chat sur le stream"
+      "hideChatOverlay": "Masquer le chat sur le stream",
+      "fullscreen": "Plein écran"
     }
   },
   "empty": {
@@ -443,7 +448,7 @@
       "title": "Ajouter des Streams",
       "description": "Composez votre grille avec des streams en direct de Twitch, Kick, YouTube ou des liens intégrés personnalisés sur un seul écran, en connexion directe avec chaque plateforme.",
       "customPlatform": "Personnalisé",
-      "hint": "Appuyez sur {key} ou cliquez sur « + » dans la barre latérale droite pour ajouter des chaînes. Avec plusieurs streams ouverts, glissez les tuiles pour les réorganiser ou appuyez sur F en survolant un stream pour l'agrandir."
+      "hint": "Appuyez sur {key} ou cliquez sur « + » en bas de la barre latérale gauche pour ajouter des chaînes. Avec plusieurs streams ouverts, glissez les tuiles pour les réorganiser ou appuyez sur F en survolant un stream pour l'agrandir."
     },
     "step2": {
       "title": "Contrôle du chat",
@@ -511,7 +516,15 @@
     "loginTitle": "Connectez votre compte",
     "loginSubtitle": "Voir les chaînes que vous suivez",
     "noChannels": "Aucune chaîne en ligne",
-    "noChannelsSubtitle": "Ajoutez des chaînes aux favoris ou connectez votre compte Twitch."
+    "noChannelsSubtitle": "Ajoutez des chaînes aux favoris ou connectez votre compte Twitch.",
+    "collapse": "Réduire la barre latérale",
+    "expand": "Agrandir la barre latérale",
+    "offlineCount": "Hors ligne ({count})",
+    "lastLive": "En direct {time}",
+    "noRecentBroadcast": "Aucune diffusion récente",
+    "browseVods": "Parcourir les diffusions passées",
+    "showOffline": "Afficher les chaînes hors ligne",
+    "hideOffline": "Masquer les chaînes hors ligne"
   },
   "nativePlayer": {
     "live": "EN DIRECT",
@@ -622,5 +635,15 @@
   },
   "chatOverlay": {
     "twitchSignIn": "Connectez le chat Twitch dans les Paramètres pour le voir ici"
+  },
+  "pip": {
+    "title": "Image dans l'image",
+    "add": "Afficher par-dessus le stream en plein écran",
+    "close": "Retirer de l'image dans l'image",
+    "makeMain": "Échanger avec le stream en plein écran",
+    "exit": "Quitter le plein écran (Échap)",
+    "none": "Aucun autre stream ouvert",
+    "drag": "Faites glisser pour déplacer",
+    "resize": "Faites glisser pour redimensionner"
   }
 }

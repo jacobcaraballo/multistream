@@ -35,6 +35,8 @@ export const API_CONFIG = {
 
 export const REFRESH_CONFIG = {
   interval: 60000, // 60s
+  // the full follow list (offline channels) changes rarely and can be thousands of entries
+  followsInterval: 600000, // 10 min
   suggestionsInterval: 300000, // 5m (300,000ms)
   maxKickPages: 8,
   suggestionsLimit: 150,

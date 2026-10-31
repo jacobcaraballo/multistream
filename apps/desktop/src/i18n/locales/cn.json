@@ -227,6 +227,10 @@
       "back": "左方向键后退的秒数",
       "forward": "右方向键前进的秒数",
       "secondsUnit": "秒"
+    },
+    "shareLink": {
+      "title": "分享链接",
+      "description": "将已打开的直播作为链接发送，或打开别人分享的链接。"
     }
   },
   "share": {
@@ -268,7 +272,8 @@
       "reload": "重新加载直播",
       "vods": "浏览录像",
       "chatOverlay": "在直播画面上显示聊天",
-      "hideChatOverlay": "隐藏直播画面上的聊天"
+      "hideChatOverlay": "隐藏直播画面上的聊天",
+      "fullscreen": "全屏"
     }
   },
   "empty": {
@@ -443,7 +448,7 @@
       "title": "添加直播流",
       "description": "在同一屏幕上组合来自 Twitch、Kick、YouTube 或自定义嵌入链接的直播画面，并与各平台建立直接连接。",
       "customPlatform": "自定义",
-      "hint": "按 {key} 键或点击右侧边栏的“+”添加频道。打开多个直播后，可拖动画面调整顺序，或将鼠标悬停在某个直播上按 F 键将其放大为主视图。"
+      "hint": "按 {key} 键或点击左侧边栏底部的“+”添加频道。打开多个直播后，可拖动画面调整顺序，或将鼠标悬停在某个直播上按 F 键将其放大为主视图。"
     },
     "step2": {
       "title": "聊天控制",
@@ -511,7 +516,15 @@
     "loginTitle": "连接您的账户",
     "loginSubtitle": "查看您关注的频道",
     "noChannels": "没有正在直播的频道",
-    "noChannelsSubtitle": "收藏频道或连接您的 Twitch 账户。"
+    "noChannelsSubtitle": "收藏频道或连接您的 Twitch 账户。",
+    "collapse": "收起侧边栏",
+    "expand": "展开侧边栏",
+    "offlineCount": "离线 ({count})",
+    "lastLive": "{time}直播过",
+    "noRecentBroadcast": "近期无直播",
+    "browseVods": "浏览往期直播",
+    "showOffline": "显示离线频道",
+    "hideOffline": "隐藏离线频道"
   },
   "nativePlayer": {
     "live": "直播中",
@@ -622,5 +635,15 @@
   },
   "chatOverlay": {
     "twitchSignIn": "在设置中连接 Twitch 聊天即可在此查看"
+  },
+  "pip": {
+    "title": "画中画",
+    "add": "显示在全屏直播上方",
+    "close": "从画中画移除",
+    "makeMain": "与全屏直播交换",
+    "exit": "退出全屏 (Esc)",
+    "none": "没有其他打开的直播",
+    "drag": "拖动以移动",
+    "resize": "拖动以调整大小"
   }
 }

@@ -14,7 +14,7 @@ import {
 import { useBackup, type BackupData } from "@/composables/useBackup";
 import { isTauri } from "@/composables/useUpdater";
 import { toast } from "@/composables/useToast";
-import { Database, Upload, Download } from "@lucide/vue";
+import { Database, Upload, Download, Share2, Link2 } from "@lucide/vue";
 
 const emit = defineEmits<{
   (e: "close"): void;
@@ -118,6 +118,12 @@ const cancelImport = () => {
   pendingBackupData.value = null;
   showImportConfirm.value = false;
 };
+
+// share links live in App.vue's dialogs; close Settings so they open on their own
+const openLinkDialog = (detail: "share" | "import") => {
+  emit("close");
+  window.dispatchEvent(new CustomEvent("multistream-show-dialog", { detail }));
+};
 </script>
 
 <template>
@@ -156,6 +162,39 @@ const cancelImport = () => {
         >
           <Download class="size-4 mr-2" />
           {{ $t("settings.backup.exportButton") }}
+        </Button>
+      </div>
+    </div>
+
+    <!-- Share Link Section -->
+    <div class="flex items-center justify-between gap-4">
+      <div class="flex items-center gap-2 px-1">
+        <Link2 class="size-4 text-gray-400 shrink-0" />
+        <div>
+          <h3 class="text-white text-sm font-medium">{{ $t("settings.shareLink.title") }}</h3>
+          <p class="text-gray-400 text-xs">{{ $t("settings.shareLink.description") }}</p>
+        </div>
+      </div>
+      <div class="shrink-0 flex items-center justify-end gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          data-testid="import-dialog-btn"
+          class="border-[#2a2d33] bg-[#1e2127] text-gray-300 hover:text-white hover:bg-[#2a2d33] transition-all duration-200"
+          @click="openLinkDialog('import')"
+        >
+          <Upload class="size-4 mr-2" />
+          {{ $t("import.tooltip") }}
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          data-testid="share-dialog-btn"
+          class="border-[#2a2d33] bg-[#1e2127] text-gray-300 hover:text-white hover:bg-[#2a2d33] transition-all duration-200"
+          @click="openLinkDialog('share')"
+        >
+          <Share2 class="size-4 mr-2" />
+          {{ $t("share.tooltip") }}
         </Button>
       </div>
     </div>

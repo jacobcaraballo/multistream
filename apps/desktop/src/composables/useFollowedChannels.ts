@@ -24,10 +24,18 @@ export interface FollowedChannel {
   isFollowed?: boolean;
   videoId?: string;
   handle?: string;
+  /** When an offline channel's latest broadcast started (ISO 8601). */
+  lastLiveAt?: string;
 }
 
 const _useFollowedChannels = () => {
   const twitchChannels = ref<FollowedChannel[]>([]);
+  // every followed Twitch channel, live or not (the live ones are filtered out for display)
+  const twitchFollows = ref<FollowedChannel[]>([]);
+  let isFetchingFollows = false;
+  let lastFollowsFetchAt = 0;
+  // bumped on sign-in/out, so a list still loading for the previous account is dropped
+  let followsGeneration = 0;
   const { authenticated: twitchAuthenticated } = useTwitchAuth();
   const { statuses, isChecking, checkAll, getStatus } = useLiveStatus();
   const { favorites } = useFavorites();
@@ -241,6 +249,38 @@ const _useFollowedChannels = () => {
     return channels.value.filter((c) => c.platform === platformFilter.value);
   });
 
+  /** Followed Twitch channels that aren't live, most recently live first. */
+  const offlineChannels = computed<FollowedChannel[]>(() => {
+    if (platformFilter.value !== "all" && platformFilter.value !== "twitch") return [];
+    const live = new Set(
+      channels.value
+        .filter((c) => c.platform === "twitch" && c.isLive)
+        .map((c) => c.id.toLowerCase())
+    );
+    return twitchFollows.value.filter((c) => !live.has(c.id.toLowerCase()));
+  });
+
+  const fetchTwitchFollows = async (force = false) => {
+    if (!isTauri() || !twitchAuthenticated.value || !isOnline.value || isFetchingFollows) return;
+    if (!force && Date.now() - lastFollowsFetchAt < REFRESH_CONFIG.followsInterval) return;
+
+    const generation = followsGeneration;
+    isFetchingFollows = true;
+    try {
+      const results = await invoke<FollowedChannel[]>("twitch_get_followed_channels");
+      if (generation !== followsGeneration) return;
+      if (Array.isArray(results) && twitchAuthenticated.value) {
+        twitchFollows.value = results;
+        lastFollowsFetchAt = Date.now();
+      }
+    } catch (e) {
+      // keep the last list; the next poll tries again
+      if (generation === followsGeneration) console.error("Failed to fetch Twitch follows", e);
+    } finally {
+      if (generation === followsGeneration) isFetchingFollows = false;
+    }
+  };
+
   const fetchTwitchFollowed = async () => {
     if (!isTauri() || !twitchAuthenticated.value || isFetchingTwitch.value || !isOnline.value) {
       if (!twitchAuthenticated.value) {
@@ -265,7 +305,11 @@ const _useFollowedChannels = () => {
     }
   };
 
-  const refresh = async () => {
+  /**
+   * Refresh the live lists. The full follow list loads alongside without holding up the live
+   * refresh (it can take a while for large accounts); `forceFollows` skips its 10-minute wait.
+   */
+  const refresh = async (forceFollows = false) => {
     if (isManualRefreshing.value || !isOnline.value) return;
 
     isManualRefreshing.value = true;
@@ -274,8 +318,10 @@ const _useFollowedChannels = () => {
       const promises: Promise<any>[] = [checkAll()];
       if (isTauri() && twitchAuthenticated.value) {
         promises.push(fetchTwitchFollowed());
+        void fetchTwitchFollows(forceFollows === true);
       } else {
         twitchChannels.value = [];
+        twitchFollows.value = [];
       }
       await Promise.allSettled(promises);
     } catch (e) {
@@ -290,7 +336,7 @@ const _useFollowedChannels = () => {
     if (!isOnline.value) return;
     const promises: Promise<any>[] = [checkAll()];
     if (isTauri() && twitchAuthenticated.value) {
-      promises.push(fetchTwitchFollowed());
+      promises.push(fetchTwitchFollowed(), fetchTwitchFollows());
     }
     await Promise.allSettled(promises);
   };
@@ -309,11 +355,16 @@ const _useFollowedChannels = () => {
   };
 
   watch(twitchAuthenticated, (isAuth) => {
+    followsGeneration++;
+    isFetchingFollows = false;
     if (isAuth) {
       hasLoadedTwitchOnce.value = false;
       fetchTwitchFollowed();
+      fetchTwitchFollows(true);
     } else {
       twitchChannels.value = [];
+      twitchFollows.value = [];
+      lastFollowsFetchAt = 0;
     }
   });
 
@@ -346,6 +397,7 @@ const _useFollowedChannels = () => {
   return {
     channels: filteredChannels,
     allChannels: channels,
+    offlineChannels,
     isLoading,
     isInitialLoading,
     platformFilter,

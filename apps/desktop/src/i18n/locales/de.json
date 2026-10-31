@@ -227,6 +227,10 @@
       "back": "Sekunden, die die linke Pfeiltaste zurückspringt",
       "forward": "Sekunden, die die rechte Pfeiltaste vorspringt",
       "secondsUnit": "s"
+    },
+    "shareLink": {
+      "title": "Teilen-Links",
+      "description": "Teile deine geöffneten Streams als Link oder öffne einen geteilten Link."
     }
   },
   "share": {
@@ -268,7 +272,8 @@
       "reload": "Stream neu laden",
       "vods": "VODs durchsuchen",
       "chatOverlay": "Chat im Stream anzeigen",
-      "hideChatOverlay": "Chat im Stream ausblenden"
+      "hideChatOverlay": "Chat im Stream ausblenden",
+      "fullscreen": "Vollbild"
     }
   },
   "empty": {
@@ -443,7 +448,7 @@
       "title": "Streams hinzufügen",
       "description": "Stelle dein Raster mit Live-Streams von Twitch, Kick, YouTube oder eigenen Embed-Links auf einem einzigen Bildschirm zusammen, mit direkter Verbindung zu jeder Plattform.",
       "customPlatform": "Eigener",
-      "hint": "Drücke {key} oder klicke rechts in der Seitenleiste auf '+', um Kanäle hinzuzufügen. Bei mehreren geöffneten Streams kannst du Kacheln per Drag-and-Drop neu anordnen oder F über einem Stream drücken, um ihn hervorzuheben."
+      "hint": "Drücke {key} oder klicke unten in der linken Seitenleiste auf '+', um Kanäle hinzuzufügen. Bei mehreren geöffneten Streams kannst du Kacheln per Drag-and-Drop neu anordnen oder F über einem Stream drücken, um ihn hervorzuheben."
     },
     "step2": {
       "title": "Chat-Steuerung",
@@ -511,7 +516,15 @@
     "loginTitle": "Konto verbinden",
     "loginSubtitle": "Sehen Sie die Kanäle, denen Sie folgen",
     "noChannels": "Keine Kanäle online",
-    "noChannelsSubtitle": "Favorisiere Kanäle oder verbinde dein Twitch-Konto."
+    "noChannelsSubtitle": "Favorisiere Kanäle oder verbinde dein Twitch-Konto.",
+    "collapse": "Seitenleiste einklappen",
+    "expand": "Seitenleiste ausklappen",
+    "offlineCount": "Offline ({count})",
+    "lastLive": "Live {time}",
+    "noRecentBroadcast": "Keine aktuellen Übertragungen",
+    "browseVods": "Vergangene Übertragungen ansehen",
+    "showOffline": "Offline-Kanäle anzeigen",
+    "hideOffline": "Offline-Kanäle ausblenden"
   },
   "nativePlayer": {
     "live": "LIVE",
@@ -622,5 +635,15 @@
   },
   "chatOverlay": {
     "twitchSignIn": "Verbinde den Twitch-Chat in den Einstellungen, um ihn hier zu sehen"
+  },
+  "pip": {
+    "title": "Bild-in-Bild",
+    "add": "Über dem Vollbild-Stream anzeigen",
+    "close": "Aus Bild-in-Bild entfernen",
+    "makeMain": "Mit dem Vollbild-Stream tauschen",
+    "exit": "Vollbild beenden (Esc)",
+    "none": "Keine anderen Streams geöffnet",
+    "drag": "Zum Verschieben ziehen",
+    "resize": "Zum Ändern der Größe ziehen"
   }
 }

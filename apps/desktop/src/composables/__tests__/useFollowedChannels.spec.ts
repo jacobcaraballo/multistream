@@ -113,6 +113,124 @@ describe("useFollowedChannels", () => {
     expect(channels.value).toEqual([{ ...mockTwitchData[0], isFollowed: true }]);
   });
 
+  const mockFollows = (live: object[], follows: object[]) =>
+    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+      if (cmd === "twitch_get_followed_streams") return live;
+      if (cmd === "twitch_get_followed_channels") return follows;
+      return [];
+    });
+
+  it("should list followed Twitch channels that aren't live as offline", async () => {
+    // Arrange
+    mockTwitchAuth.authenticated.value = true;
+    mockFollows(
+      [{ id: "ibai", platform: "twitch", displayName: "Ibai", isLive: true, viewerCount: 5 }],
+      [
+        { id: "ibai", platform: "twitch", displayName: "Ibai", isLive: false },
+        {
+          id: "quiet",
+          platform: "twitch",
+          displayName: "Quiet",
+          isLive: false,
+          lastLiveAt: "2026-10-30T19:25:36Z",
+        },
+      ]
+    );
+
+    // Act
+    const { refresh, offlineChannels } = useFollowedChannels();
+    await refresh();
+
+    // Assert
+    expect(invoke).toHaveBeenCalledWith("twitch_get_followed_channels");
+    expect(offlineChannels.value.map((c) => c.id)).toEqual(["quiet"]);
+  });
+
+  it("should hide offline Twitch channels while another platform is filtered", async () => {
+    // Arrange
+    mockTwitchAuth.authenticated.value = true;
+    mockFollows([], [{ id: "quiet", platform: "twitch", displayName: "Quiet", isLive: false }]);
+    const { refresh, offlineChannels, platformFilter } = useFollowedChannels();
+    await refresh();
+
+    // Act
+    platformFilter.value = "kick";
+
+    // Assert
+    expect(offlineChannels.value).toEqual([]);
+
+    // Act
+    platformFilter.value = "twitch";
+
+    // Assert
+    expect(offlineChannels.value.map((c) => c.id)).toEqual(["quiet"]);
+  });
+
+  it("should forget the follow list when Twitch signs out", async () => {
+    // Arrange
+    mockTwitchAuth.authenticated.value = true;
+    mockFollows([], [{ id: "quiet", platform: "twitch", displayName: "Quiet", isLive: false }]);
+    const { refresh, offlineChannels } = useFollowedChannels();
+    await refresh();
+
+    // Act
+    mockTwitchAuth.authenticated.value = false;
+    await nextTick();
+
+    // Assert
+    expect(offlineChannels.value).toEqual([]);
+  });
+
+  it("should finish a refresh without waiting for the full follow list", async () => {
+    // Arrange
+    mockTwitchAuth.authenticated.value = true;
+    vi.mocked(invoke).mockImplementation((cmd: string) =>
+      cmd === "twitch_get_followed_channels" ? new Promise(() => {}) : Promise.resolve([])
+    );
+    const { refresh, isLoading } = useFollowedChannels();
+
+    // Act
+    await refresh(true);
+
+    // Assert
+    expect(invoke).toHaveBeenCalledWith("twitch_get_followed_channels");
+    expect(isLoading.value).toBe(false);
+  });
+
+  it("should drop a follow list that arrives for the previous account", async () => {
+    // Arrange
+    mockTwitchAuth.authenticated.value = true;
+    let resolveFirst: (value: unknown) => void = () => {};
+    vi.mocked(invoke).mockImplementation((cmd: string) =>
+      cmd === "twitch_get_followed_channels"
+        ? new Promise((resolve) => (resolveFirst = resolve))
+        : Promise.resolve([])
+    );
+    const { refresh, offlineChannels } = useFollowedChannels();
+    await refresh(true);
+    const firstAccount = resolveFirst;
+
+    // Act (sign out and back in as someone else while the first list is still loading)
+    mockTwitchAuth.authenticated.value = false;
+    await nextTick();
+    mockTwitchAuth.authenticated.value = true;
+    await nextTick();
+    const secondAccount = resolveFirst;
+    firstAccount([{ id: "old", platform: "twitch", displayName: "Old", isLive: false }]);
+    await vi.waitFor(() => Promise.resolve());
+
+    // Assert
+    expect(secondAccount).not.toBe(firstAccount);
+    expect(offlineChannels.value).toEqual([]);
+
+    // Act
+    secondAccount([{ id: "new", platform: "twitch", displayName: "New", isLive: false }]);
+    await vi.waitFor(() => expect(offlineChannels.value).not.toEqual([]));
+
+    // Assert
+    expect(offlineChannels.value.map((c) => c.id)).toEqual(["new"]);
+  });
+
   it("should populate kick channels from favorites and statuses when kick is authenticated", () => {
     // Arrange
     mockKickAuth.authenticated.value = true;
