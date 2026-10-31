@@ -2632,6 +2632,8 @@ dependencies = [
  "uuid",
  "walkdir",
  "wasapi",
+ "webview2-com",
+ "windows-core 0.61.2",
  "windows-sys 0.52.0",
  "zip 0.6.6",
 ]

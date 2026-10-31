@@ -153,7 +153,7 @@ async fn emit_current_state<R: Runtime>(app: &AppHandle<R>) {
 
 // Signing out clears every twitch.tv cookie: twitch.tv's own pages rebuild `auth-token` from
 // `twilight-user` and `persistent`, so deleting `auth-token` alone signs straight back in.
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 async fn delete_twitch_cookies<R: Runtime>(app: &AppHandle<R>) {
     let Some(main) = app.get_webview_window(MAIN_WINDOW) else {
         return;
@@ -161,6 +161,47 @@ async fn delete_twitch_cookies<R: Runtime>(app: &AppHandle<R>) {
     for cookie in twitch_cookies(&main) {
         let _ = main.delete_cookie(cookie);
     }
+}
+
+// wry rebuilds a cookie from its dot-less domain before deleting it, and WebView2 treats
+// `twitch.tv` and `.twitch.tv` as different domains, so `.twitch.tv` cookies would survive.
+// DeleteCookies(name, url) removes every cookie of that name that would be sent to the URL.
+#[cfg(target_os = "windows")]
+async fn delete_twitch_cookies<R: Runtime>(app: &AppHandle<R>) {
+    use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2_2;
+    use windows_core::{Interface, HSTRING};
+
+    let Some(main) = app.get_webview_window(MAIN_WINDOW) else {
+        return;
+    };
+    let cookies = twitch_cookies(&main);
+    let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+    let _ = main.with_webview(move |webview| {
+        // SAFETY: with_webview runs on the main thread while the WebView2 controller is alive
+        let core = unsafe { webview.controller().CoreWebView2() };
+        let manager = core
+            .and_then(|core| core.cast::<ICoreWebView2_2>())
+            // SAFETY: as above
+            .and_then(|core| unsafe { core.CookieManager() });
+        if let Ok(manager) = manager {
+            for cookie in &cookies {
+                let Some(domain) = cookie.domain() else {
+                    continue;
+                };
+                let url = format!(
+                    "https://{}{}",
+                    domain.trim_start_matches('.'),
+                    cookie.path().unwrap_or("/")
+                );
+                // SAFETY: as above
+                let _ = unsafe {
+                    manager.DeleteCookies(&HSTRING::from(cookie.name()), &HSTRING::from(url))
+                };
+            }
+        }
+        let _ = tx.send(());
+    });
+    let _ = tokio::time::timeout(Duration::from_secs(5), rx).await;
 }
 
 // wry rebuilds a cookie from its dot-less domain before deleting it, and WebKit treats that as a
@@ -221,22 +262,18 @@ async fn delete_twitch_cookies<R: Runtime>(app: &AppHandle<R>) {
     let _ = tokio::time::timeout(Duration::from_secs(5), rx).await;
 }
 
-// Twitch's login runs Kasada bot detection, which rejects a WebKit engine that claims to be Chrome
-// ("Your browser is not currently supported"), so the login window must not spoof Chrome there.
-// WebKitGTK's default user agent already reads as Safari. WebView2 requires every window to share
-// one user agent, so Windows keeps the app-wide one.
-#[cfg(target_os = "windows")]
-fn login_user_agent() -> Option<String> {
-    Some(crate::USER_AGENT.to_string())
-}
-
+// Twitch's login runs Kasada bot detection, which rejects a browser whose user agent doesn't match
+// its engine ("Your browser is not currently supported"), so the login window must not use the
+// app-wide Chrome 131 user agent. WebView2 (current Edge, which also sends matching client hints)
+// and WebKitGTK (reads as Safari) are already truthful by default. On WebView2 the user agent is a
+// per-webview setting, so this doesn't break the rule that windows share browser arguments.
 #[cfg(target_os = "macos")]
 fn login_user_agent() -> Option<String> {
     let info = std::fs::read_to_string("/Applications/Safari.app/Contents/Info.plist").ok()?;
     safari_user_agent(&info)
 }
 
-#[cfg(not(any(target_os = "windows", target_os = "macos")))]
+#[cfg(not(target_os = "macos"))]
 fn login_user_agent() -> Option<String> {
     None
 }

@@ -67,6 +67,9 @@ objc2-web-kit = { version = "0.3", default-features = false, features = ["std", 
 
 [target.'cfg(windows)'.dependencies]
 tauri-winrt-notification = "0.7.3"
+# already compiled for wry; used to delete `.twitch.tv` cookies, which wry's delete_cookie misses
+webview2-com = "0.38"
+windows-core = "0.61"
 wasapi = "0.25"
 windows-sys = { version = "0.52", features = ["Win32_Foundation", "Win32_Storage_FileSystem", "Win32_System_Diagnostics_ToolHelp"] }
 
