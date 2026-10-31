@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.10] - 2026-10-31
+
+### Bug Fixes
+
+- **ui**: Show notifications at the top right and drop the "added" toasts ([462358c](https://github.com/jacobcaraballo/multistream/commit/462358cc3881c89f4e9fcd063546e9b77f390503))
+
+### Features
+
+- **player**: Click-to-focus audio, chat overlays and better VOD seeking ([7250a17](https://github.com/jacobcaraballo/multistream/commit/7250a175f686d8751c57712294e33506b9a58880))
+  - Click a stream to give it the audio and mute the rest; with the big viewer on it also moves into the big viewer
+  - Optional chat overlay on Twitch, Kick and VOD tiles, bottom right with no background
+  - VOD seek bars are easier to grab and more precise, with thumbnails on hover
+  - Right / Left arrow keys skip VODs 10 s forward / 5 s back, adjustable in Settings
+
 ## [0.19.9] - 2026-10-31
 
 ### Bug Fixes
