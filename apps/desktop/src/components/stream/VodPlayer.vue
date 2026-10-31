@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, watch } from "vue";
+import { ref, shallowRef, computed, onMounted, onBeforeUnmount, watch } from "vue";
 import { onClickOutside } from "@vueuse/core";
 import Hls, {
   type HlsConfig,
@@ -31,8 +31,12 @@ import { PLATFORMS } from "@/config/platforms";
 import { useVodSync } from "@/composables/useVodSync";
 import { useStreams } from "@/composables/useStreams";
 import { useNetworkStatus } from "@/composables/useNetworkStatus";
+import { useFocusedStream } from "@/composables/useFocusedStream";
 import { formatClock, formatSpan, stripEndlist, vodErrorKey, type Vod } from "@/lib/vod";
 import { LIVE_EDGE_BUFFER_MS, PLAYBACK_SPEEDS, mediaTarget } from "@/lib/vodSync";
+import { previewAt, type VodPreviews } from "@/lib/vodPreviews";
+import { loadVodPreviews } from "@/composables/useVodPreviews";
+import VodSeekBar from "./VodSeekBar.vue";
 
 const props = defineProps<{
   streamId: string;
@@ -51,6 +55,7 @@ const { t, locale } = useI18n();
 const { isOnline } = useNetworkStatus();
 const { updateVod } = useStreams();
 const sync = useVodSync();
+const { audioStreamId } = useFocusedStream();
 
 const videoRef = ref<HTMLVideoElement | null>(null);
 const containerRef = ref<HTMLDivElement | null>(null);
@@ -119,7 +124,21 @@ const overlay = computed(() => {
   return null;
 });
 
-const seekValue = computed(() => [scrubValue.value ?? Math.min(currentTime.value, endS.value)]);
+const seekValue = computed(() => Math.min(currentTime.value, endS.value));
+
+const previews = shallowRef<VodPreviews | null>(null);
+
+function loadPreviews() {
+  loadVodPreviews(props.vod).then((loaded) => {
+    if (!isDisposed) previews.value = loaded;
+  });
+}
+
+// a recording only has frames up to what has been written so far
+const previewFor = (seconds: number) =>
+  previews.value
+    ? previewAt(previews.value, seconds, isRecording.value ? endS.value : undefined)
+    : null;
 
 const wallClock = computed(() =>
   new Intl.DateTimeFormat(locale.value, { timeStyle: "medium" }).format(
@@ -341,10 +360,15 @@ function seekTo(seconds: number) {
   if (videoRef.value) videoRef.value.currentTime = seconds;
 }
 
-function onSeekCommit(val: number[] | undefined) {
-  const next = val?.[0];
-  if (next !== undefined) seekTo(next);
-  scrubValue.value = null;
+function onSeekCommit(seconds: number) {
+  seekTo(seconds);
+  // show the target right away; the next timeupdate only arrives once the new position decodes
+  currentTime.value = seconds;
+}
+
+// relative skips go through the sync engine: the shared clock when synced, this video otherwise
+function onSeekSkip(deltaSeconds: number) {
+  if (sync.skip(deltaSeconds, props.streamId)) onTimeUpdate();
 }
 
 function jumpToLatest() {
@@ -367,6 +391,24 @@ function toggleMute() {
   isMuted.value = !isMuted.value;
   video.muted = isMuted.value;
 }
+
+function setMuted(muted: boolean) {
+  isMuted.value = muted;
+  if (!muted && (volume.value[0] ?? 0) === 0) volume.value = [50];
+  const video = videoRef.value;
+  if (!video) return;
+  video.volume = (volume.value[0] ?? 50) / 100;
+  video.muted = muted;
+}
+
+// the tile with the audio plays unmuted; every other tile is muted
+watch(
+  audioStreamId,
+  (id) => {
+    if (id !== null) setMuted(id !== props.streamId);
+  },
+  { immediate: true }
+);
 
 function onVolumeChange(val: number[] | undefined) {
   if (!val) return;
@@ -401,17 +443,22 @@ function setQuality(index: number) {
   settingsMenuOpen.value = false;
 }
 
+// fullscreen the whole tile (the player's parent) so tile overlays such as chat come along
+const fullscreenTarget = () => containerRef.value?.parentElement ?? containerRef.value;
+
 async function toggleFullscreen() {
-  if (!containerRef.value) return;
+  const tile = fullscreenTarget();
+  if (!tile) return;
   if (document.fullscreenElement) {
     await document.exitFullscreen();
   } else {
-    await containerRef.value.requestFullscreen();
+    await tile.requestFullscreen();
   }
 }
 
 function onFullscreenChange() {
-  isFullscreen.value = document.fullscreenElement === containerRef.value;
+  const el = document.fullscreenElement;
+  isFullscreen.value = !!el && (el === containerRef.value || el === fullscreenTarget());
 }
 
 function resetHideTimer() {
@@ -424,7 +471,7 @@ function resetHideTimer() {
 
 function onMouseLeave() {
   if (hideTimer) clearTimeout(hideTimer);
-  if (!settingsMenuOpen.value) showControls.value = false;
+  if (!settingsMenuOpen.value && scrubValue.value === null) showControls.value = false;
 }
 
 function handleVideoClick() {
@@ -446,6 +493,12 @@ function onTimeUpdate() {
 
 function onWaiting() {
   isBuffering.value = true;
+}
+
+// keep the bar on the seek target instead of snapping back until the new position plays
+function onSeeking() {
+  onWaiting();
+  if (videoRef.value) currentTime.value = videoRef.value.currentTime;
 }
 
 function onPlaying() {
@@ -639,7 +692,7 @@ onBeforeUnmount(() => {
       :muted="isMuted"
       @timeupdate="onTimeUpdate"
       @waiting="onWaiting"
-      @seeking="onWaiting"
+      @seeking="onSeeking"
       @play="localPaused = false"
       @loadedmetadata="applyLocalSpeed"
       @playing="onPlaying"
@@ -695,15 +748,18 @@ onBeforeUnmount(() => {
           class="absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/80 to-transparent pt-8 pb-2 pointer-events-auto"
           :class="isCompact ? 'px-2' : 'px-3'"
         >
-          <Slider
-            :model-value="seekValue"
-            :max="Math.max(endS, 1)"
-            :step="1"
-            class="mb-2 [&_[data-slot=slider-thumb]]:size-3"
-            :aria-label="t('vods.seek')"
+          <VodSeekBar
+            :value="seekValue"
+            :max="endS"
+            :label="t('vods.seek')"
+            :compact="isCompact"
+            :preview-for="previewFor"
+            class="mb-1.5"
             :data-testid="`vod-seek-${vod.id}`"
-            @update:model-value="(v) => (scrubValue = v?.[0] ?? null)"
-            @value-commit="onSeekCommit"
+            @hover="loadPreviews"
+            @scrub="(s) => (scrubValue = s)"
+            @commit="onSeekCommit"
+            @skip="onSeekSkip"
           />
           <div class="flex items-center" :class="isCompact ? 'gap-1.5' : 'gap-2'">
             <button

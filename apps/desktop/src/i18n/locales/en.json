@@ -220,6 +220,13 @@
       "error": "Couldn't open the twitch.tv sign-in window.",
       "sectionTitle": "Playback",
       "sectionDescription": "Uses your twitch.tv login. This is separate from the Twitch chat connection above."
+    },
+    "vodSkip": {
+      "title": "VOD arrow keys",
+      "description": "How many seconds the Left and Right arrow keys skip VODs.",
+      "back": "Seconds the Left arrow skips back",
+      "forward": "Seconds the Right arrow skips ahead",
+      "secondsUnit": "s"
     }
   },
   "share": {
@@ -259,7 +266,9 @@
       "unfocus": "Unfocus stream",
       "copyUrl": "Copy stream URL",
       "reload": "Reload stream",
-      "vods": "Browse VODs"
+      "vods": "Browse VODs",
+      "chatOverlay": "Show chat on stream",
+      "hideChatOverlay": "Hide chat on stream"
     }
   },
   "empty": {
@@ -587,14 +596,14 @@
       "noOverlap": "These VODs don't overlap in time.",
       "overlap": "Overlap: {duration}",
       "buffering": "Buffering…",
-      "back10": "Back 10 seconds",
-      "forward10": "Forward 10 seconds",
       "showLanes": "Show timelines",
       "hideLanes": "Hide timelines",
       "offsetDelay": "Delay this VOD by 0.5s",
       "offsetAdvance": "Advance this VOD by 0.5s",
       "resetOffset": "Reset offset",
-      "activeCount": "{active} of {total} VODs at this moment"
+      "activeCount": "{active} of {total} VODs at this moment",
+      "skipBack": "Back {seconds}s",
+      "skipForward": "Forward {seconds}s"
     },
     "toasts": {
       "alreadyAdded": "This VOD is already in the grid"
@@ -610,5 +619,8 @@
       "filter": "Show chat from",
       "resume": "Back to now"
     }
+  },
+  "chatOverlay": {
+    "twitchSignIn": "Connect Twitch chat in Settings to see chat here"
   }
 }

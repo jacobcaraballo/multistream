@@ -1,4 +1,5 @@
 use super::error::VodError;
+use super::previews::VodPreviews;
 use super::types::{Vod, VodPage};
 use super::{kick, twitch};
 use tauri::AppHandle;
@@ -47,6 +48,16 @@ pub async fn vod_get_playback_url(
             twitch::get_playback_url(&id, session.as_deref()).await
         }
         "kick" => kick::get_playback_url(&id).await,
+        other => Err(unsupported(other)),
+    }
+}
+
+/// Seek-bar preview thumbnails, or `None` when the platform has none for this VOD (yet).
+#[tauri::command]
+pub async fn vod_previews(platform: String, id: String) -> Result<Option<VodPreviews>, VodError> {
+    match platform.as_str() {
+        "twitch" => twitch::get_previews(&id).await,
+        "kick" => kick::get_previews(&id).await,
         other => Err(unsupported(other)),
     }
 }

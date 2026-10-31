@@ -1,6 +1,7 @@
 use serde_json::Value;
 
 use super::error::VodError;
+use super::previews::{kick_frames, VodPreviews};
 use super::types::{http_client, is_valid_channel, parse_timestamp_ms, Vod};
 
 pub fn is_valid_vod_id(id: &str) -> bool {
@@ -124,6 +125,12 @@ async fn fetch_video(id: &str) -> Result<(Vod, Option<String>), VodError> {
 
 pub async fn get_vod(id: &str) -> Result<Vod, VodError> {
     fetch_video(id).await.map(|(vod, _)| vod)
+}
+
+/// The 60-second frames IVS writes next to the VOD's playlist.
+pub async fn get_previews(id: &str) -> Result<Option<VodPreviews>, VodError> {
+    let (vod, source) = fetch_video(id).await?;
+    Ok(source.and_then(|src| kick_frames(&src, vod.duration_seconds, vod.is_recording)))
 }
 
 /// Kick's CDN already allows any origin, so the source playlist is returned as-is.

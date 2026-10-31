@@ -6,6 +6,7 @@ import { useRecents } from "./useRecents";
 import { useFocusedStream } from "./useFocusedStream";
 import { useMediaCodecs } from "./useMediaCodecs";
 import { useRecording } from "./useRecording";
+import { usePreferences } from "./usePreferences";
 import { WATCH_TIME_CONFIG } from "@/config/watchTime";
 import type { Vod } from "@/lib/vod";
 
@@ -43,7 +44,7 @@ const _useStreams = () => {
   const { t } = useI18n();
   const streams = useStorage<Stream[]>("streams", []);
   const { addRecent } = useRecents();
-  const { clearFocus, focusedStreamId } = useFocusedStream();
+  const { clearFocus, focusedStreamId, audioStreamId, clearAudio } = useFocusedStream();
   const { checkVideoCodecs } = useMediaCodecs();
 
   // tracks streams currently animating out (two-phase removal)
@@ -263,6 +264,10 @@ const _useStreams = () => {
     if (focusedStreamId.value === id) {
       clearFocus();
     }
+    if (audioStreamId.value === id) {
+      clearAudio();
+    }
+    usePreferences().pruneChatOverlays(streams.value.map((s) => s.id));
 
     const streamName = stream.displayName || stream.handle || stream.channel;
     toast.success(`${streamName} ${t("toasts.remove")}`);
@@ -315,6 +320,8 @@ const _useStreams = () => {
     streams.value = [];
     leavingIds.clear();
     clearFocus();
+    clearAudio();
+    usePreferences().pruneChatOverlays([]);
   };
 
   /**

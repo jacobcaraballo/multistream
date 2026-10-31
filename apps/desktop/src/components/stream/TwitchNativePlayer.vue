@@ -22,6 +22,7 @@ import {
 } from "@lucide/vue";
 import { TwitchIcon } from "@/components/icons";
 import { useNetworkStatus } from "@/composables/useNetworkStatus";
+import { useFocusedStream } from "@/composables/useFocusedStream";
 
 const props = defineProps<{
   channel: string;
@@ -34,6 +35,7 @@ const props = defineProps<{
 
 const { t } = useI18n();
 const { isOnline } = useNetworkStatus();
+const { audioStreamId } = useFocusedStream();
 
 const isCompact = computed(() => !props.isFocused && !isFullscreen.value);
 const videoRef = ref<HTMLVideoElement | null>(null);
@@ -120,6 +122,24 @@ function toggleMute() {
   videoRef.value.muted = isMuted.value;
 }
 
+function setMuted(muted: boolean) {
+  isMuted.value = muted;
+  if (!muted && (volume.value[0] ?? 0) === 0) volume.value = [50];
+  const video = videoRef.value;
+  if (!video) return;
+  video.volume = (volume.value[0] ?? 50) / 100;
+  video.muted = muted;
+}
+
+// the tile with the audio plays unmuted; every other tile is muted
+watch(
+  audioStreamId,
+  (id) => {
+    if (id !== null && props.channelid) setMuted(id !== props.channelid);
+  },
+  { immediate: true }
+);
+
 function onVolumeChange(val: number[] | undefined) {
   if (!val) return;
   volume.value = val;
@@ -165,19 +185,24 @@ function toggleQualityMenu() {
   }
 }
 
+// fullscreen the whole tile (the player's parent) so tile overlays such as chat come along
+const fullscreenTarget = () => containerRef.value?.parentElement ?? containerRef.value;
+
 async function toggleFullscreen() {
-  if (!containerRef.value) return;
+  const tile = fullscreenTarget();
+  if (!tile) return;
   if (document.fullscreenElement) {
     await document.exitFullscreen();
     isFullscreen.value = false;
   } else {
-    await containerRef.value.requestFullscreen();
+    await tile.requestFullscreen();
     isFullscreen.value = true;
   }
 }
 
 function onFullscreenChange() {
-  isFullscreen.value = document.fullscreenElement === containerRef.value;
+  const el = document.fullscreenElement;
+  isFullscreen.value = !!el && (el === containerRef.value || el === fullscreenTarget());
 }
 
 function buildLevelLabel(level: { height: number; attrs?: Record<string, string> }) {
@@ -638,7 +663,7 @@ onBeforeUnmount(() => {
     <Transition name="hud-fade">
       <div
         v-show="showControls && !isLoading && !hasError && !isOffline"
-        class="absolute inset-0 pointer-events-none"
+        class="absolute inset-0 pointer-events-none z-20"
       >
         <!-- Top gradient + channel info -->
         <div

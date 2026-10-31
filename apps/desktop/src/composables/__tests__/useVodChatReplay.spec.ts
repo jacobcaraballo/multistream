@@ -196,4 +196,75 @@ describe("useVodChatReplay", () => {
     // Assert
     expect(invokeMock).toHaveBeenCalledTimes(1);
   });
+
+  it("should serve one tile's overlay without the panel and fetch only for it", async () => {
+    // Arrange
+    addVod("s1", vod("111", "riotgames"), 100);
+    addVod("s2", vod("222", "caedrel"), 100);
+    invokeMock.mockResolvedValue([msg("r1", "riotgames", 90), msg("r2", "riotgames", 99)]);
+    const release = sut.requestOverlay("s1");
+
+    // Act
+    sut.tick();
+    await flush();
+    sut.tick();
+
+    // Assert
+    const fetchedVods = invokeMock.mock.calls.map(([, args]) => (args as { vodId: string }).vodId);
+    expect(fetchedVods.length).toBeGreaterThan(0);
+    expect(new Set(fetchedVods)).toEqual(new Set(["111"]));
+    expect(sut.streamMessages.value.s1?.map((m) => m.id)).toEqual(["r2", "r1"]);
+    expect(sut.streamMessages.value.s2).toBeUndefined();
+
+    // Act
+    release();
+    sut.tick();
+
+    // Assert
+    expect(sut.streamMessages.value).toEqual({});
+  });
+
+  it("should keep an overlay alive until every requester releases it", () => {
+    // Arrange
+    addVod("s1", vod("111", "riotgames"), 100);
+    const first = sut.requestOverlay("s1");
+    const second = sut.requestOverlay("s1");
+
+    // Act
+    first();
+    first();
+    invokeMock.mockResolvedValue([]);
+    sut.tick();
+
+    // Assert
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+
+    // Act
+    second();
+    invokeMock.mockClear();
+    sut.tick();
+
+    // Assert: with no overlay and no panel, a manual tick reverts to panel behaviour
+    expect(sut.streamMessages.value).toEqual({});
+  });
+
+  it("should leave the panel's messages alone while only overlays are running", async () => {
+    // Arrange: the panel showed messages, then was hidden while an overlay kept running
+    addVod("s1", vod("111", "riotgames"), 100);
+    invokeMock.mockResolvedValue([msg("r1", "riotgames", 90)]);
+    sut.setActive(true);
+    await flush();
+    sut.tick();
+    const shown = sut.messages.value.map((m) => m.id);
+    const release = sut.requestOverlay("s1");
+    sut.setActive(false);
+
+    // Act
+    sut.tick();
+
+    // Assert
+    expect(shown).toEqual(["r1"]);
+    expect(sut.messages.value.map((m) => m.id)).toEqual(["r1"]);
+    release();
+  });
 });

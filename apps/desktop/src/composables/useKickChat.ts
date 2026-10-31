@@ -1,4 +1,4 @@
-import { ref, shallowRef } from "vue";
+import { ref, shallowReadonly, shallowRef } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { API_CONFIG } from "@/config/api";
@@ -36,6 +36,9 @@ let pendingMessages: KickChatMessage[] = [];
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 
 const channelMessagesMap = shallowRef<Record<string, KickChatMessage[]>>({});
+
+/** Read-only view of the Kick messages the joined chats receive (e.g. for tile overlays). */
+export const kickChannelMessages = shallowReadonly(channelMessagesMap);
 const connectionState = ref<"connected" | "disconnected" | "reconnecting">("disconnected");
 
 let isListening = false;

@@ -220,6 +220,13 @@
       "error": "twitch.tv साइन-इन विंडो नहीं खुल सकी।",
       "sectionTitle": "प्लेबैक",
       "sectionDescription": "आपके twitch.tv लॉगिन का उपयोग करता है। यह ऊपर दिए गए Twitch चैट कनेक्शन से अलग है।"
+    },
+    "vodSkip": {
+      "title": "VOD एरो कुंजियाँ",
+      "description": "बाएँ और दाएँ एरो कुंजियाँ VOD को कितने सेकंड आगे-पीछे करें।",
+      "back": "बायाँ एरो कितने सेकंड पीछे ले जाए",
+      "forward": "दायाँ एरो कितने सेकंड आगे ले जाए",
+      "secondsUnit": "से."
     }
   },
   "share": {
@@ -259,7 +266,9 @@
       "unfocus": "फ़ोकस हटाएं",
       "copyUrl": "स्ट्रीम URL कॉपी करें",
       "reload": "स्ट्रीम पुनः लोड करें",
-      "vods": "VOD देखें"
+      "vods": "VOD देखें",
+      "chatOverlay": "स्ट्रीम पर चैट दिखाएँ",
+      "hideChatOverlay": "स्ट्रीम पर चैट छिपाएँ"
     }
   },
   "empty": {
@@ -587,14 +596,14 @@
       "noOverlap": "ये VOD समय में ओवरलैप नहीं होते।",
       "overlap": "ओवरलैप: {duration}",
       "buffering": "बफ़रिंग…",
-      "back10": "10 सेकंड पीछे",
-      "forward10": "10 सेकंड आगे",
       "showLanes": "टाइमलाइन दिखाएँ",
       "hideLanes": "टाइमलाइन छिपाएँ",
       "offsetDelay": "इस VOD को 0.5 सेकंड पीछे करें",
       "offsetAdvance": "इस VOD को 0.5 सेकंड आगे करें",
       "resetOffset": "ऑफ़सेट रीसेट करें",
-      "activeCount": "इस समय {total} में से {active} VOD"
+      "activeCount": "इस समय {total} में से {active} VOD",
+      "skipBack": "{seconds} से. पीछे",
+      "skipForward": "{seconds} से. आगे"
     },
     "toasts": {
       "alreadyAdded": "यह VOD पहले से ग्रिड में है"
@@ -610,5 +619,8 @@
       "filter": "इनकी चैट दिखाएँ",
       "resume": "अभी पर लौटें"
     }
+  },
+  "chatOverlay": {
+    "twitchSignIn": "यहाँ चैट देखने के लिए सेटिंग्स में Twitch चैट कनेक्ट करें"
   }
 }

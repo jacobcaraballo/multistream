@@ -50,7 +50,7 @@ use network::check_network_connectivity;
 
 mod vod;
 use vod::chat::vod_chat;
-use vod::commands::{vod_get, vod_get_playback_url, vod_list};
+use vod::commands::{vod_get, vod_get_playback_url, vod_list, vod_previews};
 
 // fixed port
 const LOCALHOST_PORT: u16 = 14831;
@@ -69,6 +69,7 @@ pub(crate) const BROWSER_ARGS: &str =
 
 const SCREENSHOT_SCRIPT: &str = include_str!("core/screenshot_capture.js");
 const KEYBOARD_SCRIPT: &str = include_str!("core/keyboard_shortcuts.js");
+const AUDIO_FOCUS_SCRIPT: &str = include_str!("core/audio_focus.js");
 
 const STREAM_FILTER_SCRIPT: &str = include_str!("core/stream_filter.js");
 
@@ -197,6 +198,7 @@ pub fn run() {
             vod_list,
             vod_get,
             vod_get_playback_url,
+            vod_previews,
             vod_chat,
             twitch_web_session_state,
             twitch_web_login,
@@ -381,6 +383,7 @@ pub fn run() {
                 .initialization_script_for_all_frames(graveyard_script)
                 .initialization_script_for_all_frames(SCREENSHOT_SCRIPT)
                 .initialization_script_for_all_frames(KEYBOARD_SCRIPT)
+                .initialization_script_for_all_frames(AUDIO_FOCUS_SCRIPT)
                 .build()?;
 
             // system tray

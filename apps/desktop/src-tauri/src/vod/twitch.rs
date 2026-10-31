@@ -2,6 +2,7 @@ use base64::Engine;
 use serde_json::{json, Value};
 
 use super::error::VodError;
+use super::previews::{parse_storyboard, VodPreviews};
 use super::proxy::rewrite_master_playlist;
 use super::types::{http_client, is_valid_channel, parse_timestamp_ms, Vod, VodPage};
 use crate::twitch::web_session::{send_with_session, GQL_URL, WEB_CLIENT_ID};
@@ -128,6 +129,39 @@ pub async fn get_vod(id: &str) -> Result<Vod, VodError> {
     .await?;
 
     parse_vod_node(&body["data"]["video"]).ok_or_else(|| VodError::NotFound("Twitch VOD".into()))
+}
+
+/// The VOD's storyboard sprites. Twitch only publishes them once the broadcast has finished.
+pub async fn get_previews(id: &str) -> Result<Option<VodPreviews>, VodError> {
+    if !is_valid_vod_id(id) {
+        return Err(VodError::Validation("Invalid Twitch VOD id".into()));
+    }
+
+    let body = gql(json!({
+        "query": "query($id: ID!) { video(id: $id) { status seekPreviewsURL } }",
+        "variables": { "id": id }
+    }))
+    .await?;
+
+    let video = &body["data"]["video"];
+    if video["status"] == "RECORDING" {
+        return Ok(None);
+    }
+    let Some(info_url) = video["seekPreviewsURL"]
+        .as_str()
+        .filter(|url| url.starts_with("https://"))
+    else {
+        return Ok(None);
+    };
+
+    let res = http_client().get(info_url).send().await?;
+    if !res.status().is_success() {
+        // 403 while the storyboard is still being generated
+        return Ok(None);
+    }
+    // served as binary/octet-stream, so parse the bytes rather than trusting the content type
+    let bytes = res.bytes().await?;
+    Ok(parse_storyboard(info_url, &bytes))
 }
 
 /// Returns the master playlist as a data URI with every variant routed through the CDN proxy.

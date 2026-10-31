@@ -287,6 +287,78 @@ describe("useVodSync", () => {
     expect(videoB.currentTime).toBe(1200);
   });
 
+  it("should skip the shared clock forward and back while synced", () => {
+    // Arrange
+    const { aId, bId, a, b } = addTwoVods();
+    register(aId, a);
+    register(bId, b);
+    const start = sync.position.value;
+
+    // Act
+    const forward = sync.skip(10);
+
+    // Assert
+    expect(forward).toBe(true);
+    expect(sync.position.value).toBe(start + 10_000);
+
+    // Act
+    sync.skip(-5);
+
+    // Assert
+    expect(sync.position.value).toBe(start + 5_000);
+  });
+
+  it("should skip only the targeted VOD while sync is off, within its length", () => {
+    // Arrange
+    const { aId, bId, a, b } = addTwoVods();
+    const videoA = register(aId, a);
+    const videoB = register(bId, b);
+    sync.setSyncEnabled(false);
+    videoA.currentTime = 100;
+    videoB.currentTime = 3;
+
+    // Act
+    sync.skip(10, aId);
+    sync.skip(-5, bId);
+
+    // Assert
+    expect(videoA.currentTime).toBe(110);
+    expect(videoB.currentTime).toBe(0);
+
+    // Act
+    videoA.currentTime = HOUR_S - 4;
+    sync.skip(10, aId);
+
+    // Assert
+    expect(videoA.currentTime).toBe(HOUR_S);
+  });
+
+  it("should only guess the target VOD when there is exactly one", () => {
+    // Arrange
+    const { aId, bId, a, b } = addTwoVods();
+    const videoA = register(aId, a);
+    register(bId, b);
+    sync.setSyncEnabled(false);
+    videoA.currentTime = 100;
+
+    // Act / Assert
+    expect(sync.skip(10)).toBe(false);
+    expect(videoA.currentTime).toBe(100);
+
+    // Act
+    sync.unregisterPlayer(bId);
+    const skipped = sync.skip(10);
+
+    // Assert
+    expect(skipped).toBe(true);
+    expect(videoA.currentTime).toBe(110);
+  });
+
+  it("should report nothing to skip without VODs", () => {
+    // Act / Assert
+    expect(sync.skip(10)).toBe(false);
+  });
+
   it("should leave players alone while sync is off", async () => {
     // Arrange
     const { aId, bId, a, b } = addTwoVods();

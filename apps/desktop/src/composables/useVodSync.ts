@@ -321,6 +321,30 @@ const _useVodSync = () => {
 
   const jumpToVod = (id: string) => seekPlayer(id, 0);
 
+  /**
+   * Skip `deltaS` seconds: the shared clock while synced, otherwise the VOD `targetId` (or the only
+   * loaded VOD when there's just one). Returns false when there was nothing to skip.
+   */
+  const skip = (deltaS: number, targetId?: string | null): boolean => {
+    if (!vodStreams.value.length) return false;
+    if (syncEnabled.value) {
+      seekBy(deltaS);
+      return true;
+    }
+    const id =
+      targetId && videos.has(targetId)
+        ? targetId
+        : videos.size === 1
+          ? videos.keys().next().value
+          : undefined;
+    const video = id ? videos.get(id) : undefined;
+    const player = id ? players[id] : undefined;
+    if (!video || !player || player.status !== "ready") return false;
+    const end = Number.isFinite(video.duration) ? video.duration : player.endS;
+    video.currentTime = Math.min(Math.max(0, video.currentTime + deltaS), Math.max(0, end));
+    return true;
+  };
+
   const jumpToLatest = () => {
     const latest = latestPlayablePosition(ranges.value);
     if (latest === null) return;
@@ -395,6 +419,7 @@ const _useVodSync = () => {
     seek,
     seekBy,
     seekPlayer,
+    skip,
     play,
     pause,
     togglePlay,

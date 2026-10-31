@@ -220,6 +220,13 @@
       "error": "twitch.tv giriş penceresi açılamadı.",
       "sectionTitle": "Oynatma",
       "sectionDescription": "twitch.tv girişinizi kullanır. Yukarıdaki Twitch sohbet bağlantısından ayrıdır."
+    },
+    "vodSkip": {
+      "title": "VOD ok tuşları",
+      "description": "Sol ve sağ ok tuşlarının VOD'larda kaç saniye atlatacağı.",
+      "back": "Sol okun geri atlattığı saniye",
+      "forward": "Sağ okun ileri atlattığı saniye",
+      "secondsUnit": "sn"
     }
   },
   "share": {
@@ -259,7 +266,9 @@
       "unfocus": "Odaklanmayı kaldır",
       "copyUrl": "Yayın URL'sini kopyala",
       "reload": "Yayını yeniden yükle",
-      "vods": "VOD'lara göz at"
+      "vods": "VOD'lara göz at",
+      "chatOverlay": "Sohbeti yayının üzerinde göster",
+      "hideChatOverlay": "Yayın üzerindeki sohbeti gizle"
     }
   },
   "empty": {
@@ -587,14 +596,14 @@
       "noOverlap": "Bu VOD'lar zaman olarak çakışmıyor.",
       "overlap": "Çakışma: {duration}",
       "buffering": "Arabelleğe alınıyor…",
-      "back10": "10 saniye geri",
-      "forward10": "10 saniye ileri",
       "showLanes": "Zaman çizelgelerini göster",
       "hideLanes": "Zaman çizelgelerini gizle",
       "offsetDelay": "Bu VOD'u 0,5 sn geciktir",
       "offsetAdvance": "Bu VOD'u 0,5 sn öne al",
       "resetOffset": "Kaydırmayı sıfırla",
-      "activeCount": "Bu anda {total} VOD'dan {active} tanesi"
+      "activeCount": "Bu anda {total} VOD'dan {active} tanesi",
+      "skipBack": "{seconds} sn geri",
+      "skipForward": "{seconds} sn ileri"
     },
     "toasts": {
       "alreadyAdded": "Bu VOD zaten ızgarada"
@@ -610,5 +619,8 @@
       "filter": "Sohbeti göster",
       "resume": "Şu ana dön"
     }
+  },
+  "chatOverlay": {
+    "twitchSignIn": "Sohbeti burada görmek için Ayarlar'dan Twitch sohbetini bağlayın"
   }
 }

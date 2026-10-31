@@ -4,8 +4,9 @@ import { useI18n } from "vue-i18n";
 import { TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
 import { useUpdater, isTauri } from "@/composables/useUpdater";
-import { usePreferences } from "@/composables/usePreferences";
+import { usePreferences, MIN_SKIP_SECONDS, MAX_SKIP_SECONDS } from "@/composables/usePreferences";
 import { toast } from "@/composables/useToast";
 import { SUPPORTED_LANGUAGES } from "@/config/i18n";
 import {
@@ -16,6 +17,7 @@ import {
   Download,
   RefreshCw,
   HelpCircle,
+  Keyboard,
 } from "@lucide/vue";
 
 const emit = defineEmits<{
@@ -23,7 +25,25 @@ const emit = defineEmits<{
 }>();
 
 const { locale, t } = useI18n();
-const { notificationsEnabled, nativePlayerEnabled, adblockEnabled } = usePreferences();
+const {
+  notificationsEnabled,
+  nativePlayerEnabled,
+  adblockEnabled,
+  vodSkipForwardSeconds,
+  vodSkipBackSeconds,
+  setVodSkipForwardSeconds,
+  setVodSkipBackSeconds,
+} = usePreferences();
+
+// commit on change and write the normalized number back, so "" or "0" snaps to a valid value
+function onSkipChange(direction: "forward" | "back", e: Event) {
+  const input = e.target as HTMLInputElement;
+  if (direction === "forward") setVodSkipForwardSeconds(input.value);
+  else setVodSkipBackSeconds(input.value);
+  input.value = String(
+    direction === "forward" ? vodSkipForwardSeconds.value : vodSkipBackSeconds.value
+  );
+}
 const { checkForUpdates, isChecking } = useUpdater();
 
 const isRunningInTauri = isTauri();
@@ -179,6 +199,53 @@ watch(adblockEnabled, (enabled) => {
               v-model:checked="adblockEnabled"
               :aria-label="$t('settings.adblock.title')"
             />
+          </div>
+        </div>
+
+        <!-- VOD arrow-key skips -->
+        <div class="flex items-center justify-between gap-4" data-testid="vod-skip-settings">
+          <div class="flex items-center gap-2.5 px-0.5 min-w-0 flex-1">
+            <Keyboard class="size-4 text-gray-400 shrink-0" aria-hidden="true" />
+            <div class="min-w-0 flex-1">
+              <h3 class="text-white text-sm font-medium">
+                {{ $t("settings.vodSkip.title") }}
+              </h3>
+              <p class="text-gray-400 text-xs mt-0.5">
+                {{ $t("settings.vodSkip.description") }}
+              </p>
+            </div>
+          </div>
+          <div class="shrink-0 flex items-center gap-3 text-xs text-gray-400">
+            <label class="flex items-center gap-1.5">
+              <span aria-hidden="true">&larr;</span>
+              <Input
+                type="number"
+                :min="MIN_SKIP_SECONDS"
+                :max="MAX_SKIP_SECONDS"
+                step="1"
+                :model-value="vodSkipBackSeconds"
+                class="h-7 w-16 px-2 text-xs tabular-nums"
+                :aria-label="$t('settings.vodSkip.back')"
+                data-testid="vod-skip-back"
+                @change="onSkipChange('back', $event)"
+              />
+              {{ $t("settings.vodSkip.secondsUnit") }}
+            </label>
+            <label class="flex items-center gap-1.5">
+              <span aria-hidden="true">&rarr;</span>
+              <Input
+                type="number"
+                :min="MIN_SKIP_SECONDS"
+                :max="MAX_SKIP_SECONDS"
+                step="1"
+                :model-value="vodSkipForwardSeconds"
+                class="h-7 w-16 px-2 text-xs tabular-nums"
+                :aria-label="$t('settings.vodSkip.forward')"
+                data-testid="vod-skip-forward"
+                @change="onSkipChange('forward', $event)"
+              />
+              {{ $t("settings.vodSkip.secondsUnit") }}
+            </label>
           </div>
         </div>
 

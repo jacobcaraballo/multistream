@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { usePreferences } from "../usePreferences";
+import { normalizeSkipSeconds, usePreferences } from "../usePreferences";
 
 describe("usePreferences composable unit tests", () => {
   let sut: ReturnType<typeof usePreferences>;
@@ -262,5 +262,68 @@ describe("usePreferences composable unit tests", () => {
     expect(recordingQuality.value).toBe("best");
     expect(recordingPath.value).toBe("");
     expect(immersiveModeEnabled.value).toBe(false);
+  });
+
+  it("should default VOD arrow-key skips to 10s forward and 5s back", () => {
+    // Assert
+    expect(sut.vodSkipForwardSeconds.value).toBe(10);
+    expect(sut.vodSkipBackSeconds.value).toBe(5);
+  });
+
+  it("should store skip seconds as whole, bounded numbers", () => {
+    // Act
+    sut.setVodSkipForwardSeconds("30");
+    sut.setVodSkipBackSeconds(2.6);
+
+    // Assert
+    expect(sut.vodSkipForwardSeconds.value).toBe(30);
+    expect(sut.vodSkipBackSeconds.value).toBe(3);
+
+    // Act
+    sut.setVodSkipForwardSeconds(0);
+    sut.setVodSkipBackSeconds(99999);
+
+    // Assert
+    expect(sut.vodSkipForwardSeconds.value).toBe(1);
+    expect(sut.vodSkipBackSeconds.value).toBe(600);
+  });
+
+  it("should keep the default when a skip value isn't a number", () => {
+    // Act / Assert
+    expect(normalizeSkipSeconds("", 10)).toBe(10);
+    expect(normalizeSkipSeconds("abc", 5)).toBe(5);
+    expect(normalizeSkipSeconds(Number.NaN, 5)).toBe(5);
+    expect(normalizeSkipSeconds(undefined, 10)).toBe(10);
+  });
+
+  it("should toggle a tile's chat overlay and forget removed streams", () => {
+    // Act
+    sut.toggleChatOverlay("a");
+    sut.toggleChatOverlay("b");
+
+    // Assert
+    expect(sut.isChatOverlayOn("a")).toBe(true);
+    expect(sut.chatOverlayStreamIds.value).toEqual(["a", "b"]);
+
+    // Act
+    sut.toggleChatOverlay("a");
+    sut.pruneChatOverlays(["c"]);
+
+    // Assert
+    expect(sut.isChatOverlayOn("a")).toBe(false);
+    expect(sut.chatOverlayStreamIds.value).toEqual([]);
+  });
+
+  it("should reset skip seconds and overlays to defaults", () => {
+    // Arrange
+    sut.setVodSkipForwardSeconds(45);
+    sut.toggleChatOverlay("a");
+
+    // Act
+    sut.resetPreferences();
+
+    // Assert
+    expect(sut.vodSkipForwardSeconds.value).toBe(10);
+    expect(sut.chatOverlayStreamIds.value).toEqual([]);
   });
 });

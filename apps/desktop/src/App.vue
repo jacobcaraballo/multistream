@@ -12,6 +12,8 @@ import { useRecording } from "./composables/useRecording";
 import { useDeepLink } from "./composables/useDeepLink";
 import { useNetworkStatus } from "./composables/useNetworkStatus";
 import { useImmersiveMode } from "./composables/useImmersiveMode";
+import { useVodSync } from "./composables/useVodSync";
+import { useFocusedStream } from "./composables/useFocusedStream";
 import ToastProvider from "./components/ui/toast/ToastProvider.vue";
 import FollowedChannelsSidebar from "./components/main/FollowedChannelsSidebar.vue";
 import SidebarPanel from "./components/main/SidebarPanel.vue";
@@ -80,7 +82,11 @@ const {
   setOnboardingCompleted,
   pendingChangelogVersion,
   setPendingChangelogVersion,
+  vodSkipForwardSeconds,
+  vodSkipBackSeconds,
 } = usePreferences();
+const { skip: skipVods } = useVodSync();
+const { audioStreamId, focusedStreamId } = useFocusedStream();
 const { checkForUpdates } = useUpdater();
 const { refreshSuggestions, startPolling } = useLiveStatus();
 const { checkVideoCodecs } = useMediaCodecs();
@@ -134,6 +140,18 @@ function handleGlobalKeyDown(e: KeyboardEvent) {
       handleEscape();
       return;
     }
+  }
+
+  // Right / Left: skip VODs forward / back by the amounts set in Settings
+  if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+    if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || isModalDialogOpen()) return;
+    if (target.closest?.('[role="slider"], [role="menu"], [role="listbox"], [role="tablist"]')) {
+      return;
+    }
+    const seconds =
+      e.key === "ArrowRight" ? vodSkipForwardSeconds.value : -vodSkipBackSeconds.value;
+    if (skipVods(seconds, audioStreamId.value ?? focusedStreamId.value)) e.preventDefault();
+    return;
   }
 
   const num = parseInt(e.key, 10);

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, shallowRef } from "vue";
 import { useI18n } from "vue-i18n";
 import { onClickOutside, useStorage } from "@vueuse/core";
 import {
@@ -19,6 +19,10 @@ import { PLATFORMS } from "@/config/platforms";
 import { useVodSync } from "@/composables/useVodSync";
 import { formatSpan } from "@/lib/vod";
 import { PLAYBACK_SPEEDS, anyRangesOverlap } from "@/lib/vodSync";
+import { previewAt, type PreviewFrame, type VodPreviews } from "@/lib/vodPreviews";
+import { loadVodPreviews } from "@/composables/useVodPreviews";
+import { usePreferences } from "@/composables/usePreferences";
+import VodPreviewThumb from "@/components/stream/VodPreviewThumb.vue";
 
 const { t, locale } = useI18n();
 const {
@@ -45,10 +49,16 @@ const {
   setSyncEnabled,
 } = useVodSync();
 
+const { vodSkipForwardSeconds, vodSkipBackSeconds } = usePreferences();
+
 const expanded = useStorage("vod-sync-bar-expanded", true);
 const trackRef = ref<HTMLDivElement | null>(null);
+const trackWidth = ref(0);
 const scrubPos = ref<number | null>(null);
 const hoverPos = ref<number | null>(null);
+// pressing on the playhead drags it from where it is instead of jumping to the pointer
+const GRAB_PX = 8;
+let grabOffsetMs = 0;
 const speedMenuRef = ref<HTMLDivElement | null>(null);
 const speedMenuOpen = ref(false);
 
@@ -124,42 +134,105 @@ const overlapLabel = computed(() => {
 
 const formatOffset = (s: number) => `${s > 0 ? "+" : ""}${s.toFixed(1)}s`;
 
+const clampPos = (ms: number) => {
+  const tl = timeline.value;
+  return tl ? Math.min(tl.endMs, Math.max(tl.startMs, ms)) : ms;
+};
+
 const posFromEvent = (e: PointerEvent | MouseEvent) => {
   const el = trackRef.value;
   const tl = timeline.value;
   if (!el || !tl) return null;
   const rect = el.getBoundingClientRect();
+  trackWidth.value = rect.width;
   const ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
   return tl.startMs + ratio * span.value;
 };
 
 function onPointerDown(e: PointerEvent) {
   if (e.button !== 0) return;
+  const pos = posFromEvent(e);
+  if (pos === null) return;
   trackRef.value?.setPointerCapture(e.pointerId);
-  scrubPos.value = posFromEvent(e);
+  const msPerPx = trackWidth.value ? span.value / trackWidth.value : 0;
+  grabOffsetMs = Math.abs(pos - position.value) <= GRAB_PX * msPerPx ? position.value - pos : 0;
+  scrubPos.value = clampPos(pos + grabOffsetMs);
 }
 
 function onPointerMove(e: PointerEvent) {
   const pos = posFromEvent(e);
   hoverPos.value = pos;
-  if (scrubPos.value !== null) scrubPos.value = pos;
+  if (scrubPos.value !== null && pos !== null) scrubPos.value = clampPos(pos + grabOffsetMs);
 }
 
 function onPointerUp(e: PointerEvent) {
   if (scrubPos.value === null) return;
+  const target = scrubPos.value;
+  scrubPos.value = null;
   trackRef.value?.releasePointerCapture(e.pointerId);
-  seek(scrubPos.value);
+  seek(target);
+}
+
+// capture lost without a pointerup (e.g. the window lost focus): drop the drag without seeking
+function onCaptureLost() {
   scrubPos.value = null;
 }
 
+function onPointerEnter() {
+  vodStreams.value.forEach((s) => {
+    loadVodPreviews(s.vod).then((loaded) => {
+      previews.value = { ...previews.value, [s.id]: loaded };
+    });
+  });
+}
+
+function onPointerLeave() {
+  if (scrubPos.value === null) hoverPos.value = null;
+}
+
+const previews = shallowRef<Record<string, VodPreviews | null>>({});
+
+// the moment under the pointer (or being dragged to) and what each covering VOD shows there
+const tipPos = computed(() => scrubPos.value ?? hoverPos.value);
+const tipFrames = computed(() => {
+  const pos = tipPos.value;
+  if (pos === null) return [];
+  const frames: { id: string; color: string; frame: PreviewFrame }[] = [];
+  for (const s of vodStreams.value) {
+    const range = ranges.value.find((r) => r.id === s.id);
+    const loaded = previews.value[s.id];
+    if (!range || !loaded || pos < range.startMs || pos > range.endMs) continue;
+    // range.startMs already includes the lane's offset
+    const mediaS = (pos - range.startMs) / 1000;
+    const durationS = (range.endMs - range.startMs) / 1000;
+    const frame = previewAt(loaded, mediaS, range.isRecording ? durationS : undefined);
+    if (frame) frames.push({ id: s.id, color: PLATFORMS[s.vod.platform].color, frame });
+    if (frames.length === 3) break;
+  }
+  return frames;
+});
+const TIP_THUMB_PX = 112;
+const tipLeft = computed(() => {
+  if (tipPos.value === null) return 0;
+  const x = (pct(tipPos.value) / 100) * trackWidth.value;
+  const n = tipFrames.value.length;
+  const half = n ? (n * TIP_THUMB_PX + (n - 1) * 4) / 2 : 40;
+  return Math.min(Math.max(x, half), Math.max(trackWidth.value - half, half));
+});
+
 function onTrackKeydown(e: KeyboardEvent) {
-  const step = e.shiftKey ? 60 : 10;
   if (e.key === "ArrowLeft") {
     e.preventDefault();
-    seekBy(-step);
+    seekBy(e.shiftKey ? -60 : -vodSkipBackSeconds.value);
   } else if (e.key === "ArrowRight") {
     e.preventDefault();
-    seekBy(step);
+    seekBy(e.shiftKey ? 60 : vodSkipForwardSeconds.value);
+  } else if (e.key === "Home" && timeline.value) {
+    e.preventDefault();
+    seek(timeline.value.startMs);
+  } else if (e.key === "End" && timeline.value) {
+    e.preventDefault();
+    seek(timeline.value.endMs);
   } else if (e.key === " ") {
     e.preventDefault();
     togglePlay();
@@ -183,9 +256,9 @@ function onTrackKeydown(e: KeyboardEvent) {
         <button
           type="button"
           class="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
-          :aria-label="t('vods.sync.back10')"
-          :title="t('vods.sync.back10')"
-          @click="seekBy(-10)"
+          :aria-label="t('vods.sync.skipBack', { seconds: vodSkipBackSeconds })"
+          :title="t('vods.sync.skipBack', { seconds: vodSkipBackSeconds })"
+          @click="seekBy(-vodSkipBackSeconds)"
         >
           <Rewind class="size-4" aria-hidden="true" />
         </button>
@@ -202,9 +275,9 @@ function onTrackKeydown(e: KeyboardEvent) {
         <button
           type="button"
           class="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
-          :aria-label="t('vods.sync.forward10')"
-          :title="t('vods.sync.forward10')"
-          @click="seekBy(10)"
+          :aria-label="t('vods.sync.skipForward', { seconds: vodSkipForwardSeconds })"
+          :title="t('vods.sync.skipForward', { seconds: vodSkipForwardSeconds })"
+          @click="seekBy(vodSkipForwardSeconds)"
         >
           <FastForward class="size-4" aria-hidden="true" />
         </button>
@@ -304,9 +377,9 @@ function onTrackKeydown(e: KeyboardEvent) {
     </div>
 
     <!-- timeline -->
-    <div v-if="syncEnabled && timeline" class="flex mt-1.5">
+    <div v-if="syncEnabled && timeline" class="flex">
       <!-- lane labels -->
-      <div class="w-48 shrink-0 pr-2">
+      <div class="w-48 shrink-0 pr-2 pt-1.5">
         <div class="h-5 flex items-center text-[10px] text-gray-500 tabular-nums">
           {{ fmt(timeline.startMs) }}
         </div>
@@ -371,16 +444,19 @@ function onTrackKeydown(e: KeyboardEvent) {
         role="slider"
         tabindex="0"
         data-testid="vod-sync-track"
-        class="relative flex-1 min-w-0 cursor-pointer rounded-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/30"
+        class="relative flex-1 min-w-0 pt-1.5 cursor-pointer touch-none rounded-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/30"
         :aria-label="t('vods.seek')"
         :aria-valuemin="timeline.startMs"
         :aria-valuemax="timeline.endMs"
         :aria-valuenow="Math.round(displayPos)"
         :aria-valuetext="currentLabel"
+        @pointerenter="onPointerEnter"
         @pointerdown="onPointerDown"
         @pointermove="onPointerMove"
         @pointerup="onPointerUp"
-        @pointerleave="hoverPos = null"
+        @pointercancel="onCaptureLost"
+        @lostpointercapture="onCaptureLost"
+        @pointerleave="onPointerLeave"
         @keydown="onTrackKeydown"
       >
         <div class="h-5 relative">
@@ -428,16 +504,34 @@ function onTrackKeydown(e: KeyboardEvent) {
           </div>
         </template>
 
-        <!-- hover time -->
+        <!-- hover line -->
         <div
           v-if="hoverPos !== null && scrubPos === null"
           class="absolute top-0 bottom-0 w-px bg-white/25 pointer-events-none"
           :style="{ left: `${pct(hoverPos)}%` }"
+        />
+
+        <!-- time (and what each VOD shows then) under the pointer or the drag -->
+        <div
+          v-if="tipPos !== null"
+          class="absolute bottom-full mb-1 z-[60] flex -translate-x-1/2 flex-col items-center gap-1 pointer-events-none"
+          :style="{ left: `${tipLeft}px` }"
+          data-testid="vod-sync-tip"
         >
+          <div v-if="tipFrames.length" class="flex gap-1">
+            <div
+              v-for="item in tipFrames"
+              :key="item.id"
+              class="rounded-md border-b-2"
+              :style="{ borderColor: item.color }"
+            >
+              <VodPreviewThumb :frame="item.frame" :width="TIP_THUMB_PX" />
+            </div>
+          </div>
           <span
-            class="absolute -top-5 -translate-x-1/2 px-1.5 py-0.5 rounded bg-black/80 border border-white/10 text-[10px] tabular-nums whitespace-nowrap"
+            class="px-1.5 py-0.5 rounded bg-black/85 border border-white/10 text-[10px] tabular-nums whitespace-nowrap"
           >
-            {{ fmt(hoverPos, true) }}
+            {{ fmt(tipPos, true) }}
           </span>
         </div>
 
@@ -446,7 +540,7 @@ function onTrackKeydown(e: KeyboardEvent) {
           class="absolute top-0 bottom-0 w-px bg-white pointer-events-none"
           :style="{ left: `${pct(displayPos)}%` }"
         >
-          <span class="absolute top-1 -translate-x-1/2 size-3 rounded-full bg-white shadow" />
+          <span class="absolute top-2.5 -translate-x-1/2 size-3 rounded-full bg-white shadow" />
         </div>
       </div>
     </div>

@@ -220,6 +220,13 @@
       "error": "Tidak dapat membuka jendela masuk twitch.tv.",
       "sectionTitle": "Pemutaran",
       "sectionDescription": "Memakai login twitch.tv Anda. Ini terpisah dari koneksi chat Twitch di atas."
+    },
+    "vodSkip": {
+      "title": "Tombol panah VOD",
+      "description": "Berapa detik tombol panah kiri dan kanan melompati VOD.",
+      "back": "Detik mundur tombol panah kiri",
+      "forward": "Detik maju tombol panah kanan",
+      "secondsUnit": "dtk"
     }
   },
   "share": {
@@ -259,7 +266,9 @@
       "unfocus": "Batal fokuskan",
       "copyUrl": "Salin URL siaran",
       "reload": "Muat ulang siaran",
-      "vods": "Jelajahi VOD"
+      "vods": "Jelajahi VOD",
+      "chatOverlay": "Tampilkan chat di atas siaran",
+      "hideChatOverlay": "Sembunyikan chat di atas siaran"
     }
   },
   "empty": {
@@ -587,14 +596,14 @@
       "noOverlap": "VOD ini tidak tumpang tindih secara waktu.",
       "overlap": "Tumpang tindih: {duration}",
       "buffering": "Memuat…",
-      "back10": "Mundur 10 detik",
-      "forward10": "Maju 10 detik",
       "showLanes": "Tampilkan linimasa",
       "hideLanes": "Sembunyikan linimasa",
       "offsetDelay": "Tunda VOD ini 0,5 dtk",
       "offsetAdvance": "Majukan VOD ini 0,5 dtk",
       "resetOffset": "Atur ulang offset",
-      "activeCount": "{active} dari {total} VOD pada saat ini"
+      "activeCount": "{active} dari {total} VOD pada saat ini",
+      "skipBack": "Mundur {seconds} dtk",
+      "skipForward": "Maju {seconds} dtk"
     },
     "toasts": {
       "alreadyAdded": "VOD ini sudah ada di grid"
@@ -610,5 +619,8 @@
       "filter": "Tampilkan chat dari",
       "resume": "Kembali ke saat ini"
     }
+  },
+  "chatOverlay": {
+    "twitchSignIn": "Hubungkan chat Twitch di Pengaturan untuk melihat chat di sini"
   }
 }

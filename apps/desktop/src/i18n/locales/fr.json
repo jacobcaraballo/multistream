@@ -220,6 +220,13 @@
       "error": "Impossible d'ouvrir la fenêtre de connexion twitch.tv.",
       "sectionTitle": "Lecture",
       "sectionDescription": "Utilise votre connexion twitch.tv. C'est distinct de la connexion au chat Twitch ci-dessus."
+    },
+    "vodSkip": {
+      "title": "Flèches du clavier pour les VOD",
+      "description": "Nombre de secondes que les flèches gauche et droite font sauter dans les VOD.",
+      "back": "Secondes de recul de la flèche gauche",
+      "forward": "Secondes d'avance de la flèche droite",
+      "secondsUnit": "s"
     }
   },
   "share": {
@@ -259,7 +266,9 @@
       "unfocus": "Quitter le centrage",
       "copyUrl": "Copier l'URL du stream",
       "reload": "Recharger le stream",
-      "vods": "Parcourir les VODs"
+      "vods": "Parcourir les VODs",
+      "chatOverlay": "Afficher le chat sur le stream",
+      "hideChatOverlay": "Masquer le chat sur le stream"
     }
   },
   "empty": {
@@ -587,14 +596,14 @@
       "noOverlap": "Ces VODs ne se chevauchent pas dans le temps.",
       "overlap": "Chevauchement : {duration}",
       "buffering": "Mise en mémoire tampon…",
-      "back10": "Reculer de 10 secondes",
-      "forward10": "Avancer de 10 secondes",
       "showLanes": "Afficher les chronologies",
       "hideLanes": "Masquer les chronologies",
       "offsetDelay": "Retarder ce VOD de 0,5 s",
       "offsetAdvance": "Avancer ce VOD de 0,5 s",
       "resetOffset": "Réinitialiser le décalage",
-      "activeCount": "{active} VODs sur {total} à cet instant"
+      "activeCount": "{active} VODs sur {total} à cet instant",
+      "skipBack": "Reculer de {seconds} s",
+      "skipForward": "Avancer de {seconds} s"
     },
     "toasts": {
       "alreadyAdded": "Ce VOD est déjà dans la grille"
@@ -610,5 +619,8 @@
       "filter": "Afficher le chat de",
       "resume": "Revenir au moment actuel"
     }
+  },
+  "chatOverlay": {
+    "twitchSignIn": "Connectez le chat Twitch dans les Paramètres pour le voir ici"
   }
 }

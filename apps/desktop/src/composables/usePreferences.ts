@@ -13,6 +13,20 @@ export interface Preferences {
   nativePlayerEnabled: boolean;
   adblockEnabled: boolean;
   immersiveModeEnabled: boolean;
+
+  vodSkipForwardSeconds: number;
+  vodSkipBackSeconds: number;
+  chatOverlayStreamIds: string[];
+}
+
+export const MIN_SKIP_SECONDS = 1;
+export const MAX_SKIP_SECONDS = 600;
+
+/** Whole seconds within the allowed skip range; anything unusable falls back to `fallback`. */
+export function normalizeSkipSeconds(value: unknown, fallback: number): number {
+  const n = typeof value === "string" && value.trim() !== "" ? Number(value) : value;
+  if (typeof n !== "number" || !Number.isFinite(n)) return fallback;
+  return Math.min(MAX_SKIP_SECONDS, Math.max(MIN_SKIP_SECONDS, Math.round(n)));
 }
 
 const defaultPreferences: Preferences = {
@@ -28,6 +42,10 @@ const defaultPreferences: Preferences = {
   nativePlayerEnabled: false,
   adblockEnabled: true,
   immersiveModeEnabled: false,
+
+  vodSkipForwardSeconds: 10,
+  vodSkipBackSeconds: 5,
+  chatOverlayStreamIds: [],
 };
 
 const _usePreferences = () => {
@@ -102,6 +120,25 @@ const _usePreferences = () => {
   );
 
   /**
+   * @brief Seconds the Right / Left arrow keys skip VODs forward / back
+   */
+  const vodSkipForwardSeconds = useStorage<number>(
+    "preferences.vodSkipForwardSeconds",
+    defaultPreferences.vodSkipForwardSeconds
+  );
+  const vodSkipBackSeconds = useStorage<number>(
+    "preferences.vodSkipBackSeconds",
+    defaultPreferences.vodSkipBackSeconds
+  );
+
+  /**
+   * @brief Stream ids whose tile shows a chat overlay
+   */
+  const chatOverlayStreamIds = useStorage<string[]>("preferences.chatOverlayStreamIds", [
+    ...defaultPreferences.chatOverlayStreamIds,
+  ]);
+
+  /**
    * @brief Set the selected chat
    *
    * @param chatId The chat ID
@@ -129,6 +166,31 @@ const _usePreferences = () => {
 
   const toggleImmersiveMode = () => {
     immersiveModeEnabled.value = !immersiveModeEnabled.value;
+  };
+
+  const setVodSkipForwardSeconds = (seconds: unknown) => {
+    vodSkipForwardSeconds.value = normalizeSkipSeconds(
+      seconds,
+      defaultPreferences.vodSkipForwardSeconds
+    );
+  };
+
+  const setVodSkipBackSeconds = (seconds: unknown) => {
+    vodSkipBackSeconds.value = normalizeSkipSeconds(seconds, defaultPreferences.vodSkipBackSeconds);
+  };
+
+  const isChatOverlayOn = (streamId: string) => chatOverlayStreamIds.value.includes(streamId);
+
+  const toggleChatOverlay = (streamId: string) => {
+    chatOverlayStreamIds.value = isChatOverlayOn(streamId)
+      ? chatOverlayStreamIds.value.filter((id) => id !== streamId)
+      : [...chatOverlayStreamIds.value, streamId];
+  };
+
+  /** Forget overlays of streams that no longer exist. */
+  const pruneChatOverlays = (streamIds: string[]) => {
+    const kept = chatOverlayStreamIds.value.filter((id) => streamIds.includes(id));
+    if (kept.length !== chatOverlayStreamIds.value.length) chatOverlayStreamIds.value = kept;
   };
 
   /**
@@ -201,6 +263,10 @@ const _usePreferences = () => {
     nativePlayerEnabled.value = defaultPreferences.nativePlayerEnabled;
     adblockEnabled.value = defaultPreferences.adblockEnabled;
     immersiveModeEnabled.value = defaultPreferences.immersiveModeEnabled;
+
+    vodSkipForwardSeconds.value = defaultPreferences.vodSkipForwardSeconds;
+    vodSkipBackSeconds.value = defaultPreferences.vodSkipBackSeconds;
+    chatOverlayStreamIds.value = [...defaultPreferences.chatOverlayStreamIds];
   };
 
   return {
@@ -217,6 +283,9 @@ const _usePreferences = () => {
     nativePlayerEnabled,
     adblockEnabled,
     immersiveModeEnabled,
+    vodSkipForwardSeconds,
+    vodSkipBackSeconds,
+    chatOverlayStreamIds,
 
     // actions
     setSelectedChat,
@@ -231,6 +300,11 @@ const _usePreferences = () => {
     setAdblockEnabled,
     setImmersiveModeEnabled,
     toggleImmersiveMode,
+    setVodSkipForwardSeconds,
+    setVodSkipBackSeconds,
+    isChatOverlayOn,
+    toggleChatOverlay,
+    pruneChatOverlays,
     resetPreferences,
   };
 };

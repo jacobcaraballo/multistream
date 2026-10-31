@@ -220,6 +220,13 @@
       "error": "无法打开 twitch.tv 登录窗口。",
       "sectionTitle": "播放",
       "sectionDescription": "使用你的 twitch.tv 登录，与上方的 Twitch 聊天连接相互独立。"
+    },
+    "vodSkip": {
+      "title": "录像方向键",
+      "description": "左右方向键在录像中跳转的秒数。",
+      "back": "左方向键后退的秒数",
+      "forward": "右方向键前进的秒数",
+      "secondsUnit": "秒"
     }
   },
   "share": {
@@ -259,7 +266,9 @@
       "unfocus": "取消聚焦",
       "copyUrl": "复制直播URL",
       "reload": "重新加载直播",
-      "vods": "浏览录像"
+      "vods": "浏览录像",
+      "chatOverlay": "在直播画面上显示聊天",
+      "hideChatOverlay": "隐藏直播画面上的聊天"
     }
   },
   "empty": {
@@ -587,14 +596,14 @@
       "noOverlap": "这些录像在时间上没有重叠。",
       "overlap": "重叠：{duration}",
       "buffering": "缓冲中…",
-      "back10": "后退 10 秒",
-      "forward10": "前进 10 秒",
       "showLanes": "显示时间轴",
       "hideLanes": "隐藏时间轴",
       "offsetDelay": "将此录像延后 0.5 秒",
       "offsetAdvance": "将此录像提前 0.5 秒",
       "resetOffset": "重置偏移",
-      "activeCount": "此刻 {total} 个录像中有 {active} 个"
+      "activeCount": "此刻 {total} 个录像中有 {active} 个",
+      "skipBack": "后退 {seconds} 秒",
+      "skipForward": "前进 {seconds} 秒"
     },
     "toasts": {
       "alreadyAdded": "此录像已在网格中"
@@ -610,5 +619,8 @@
       "filter": "显示以下频道的聊天",
       "resume": "回到当前"
     }
+  },
+  "chatOverlay": {
+    "twitchSignIn": "在设置中连接 Twitch 聊天即可在此查看"
   }
 }

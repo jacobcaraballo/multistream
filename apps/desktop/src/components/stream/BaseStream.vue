@@ -13,6 +13,7 @@ import {
   RotateCw,
   WifiOff,
   Clapperboard,
+  MessageSquareText,
 } from "@lucide/vue";
 import { ref, onMounted, onUnmounted, computed, watch, nextTick } from "vue";
 import { useFavorites } from "@/composables/useFavorites";
@@ -28,13 +29,31 @@ import { useRecording } from "@/composables/useRecording";
 import { usePreferences } from "@/composables/usePreferences";
 import { useNetworkStatus } from "@/composables/useNetworkStatus";
 import { isVodPlatform } from "@/lib/vod";
+import { useDragAndDrop } from "@/composables/useDragAndDrop";
+import ChatOverlay from "@/components/chat/ChatOverlay.vue";
 
 const { requestRemoveStream, sessionStartTimes, now } = useStreams();
 const { addFavorite, removeFavorite, favorites } = useFavorites();
-const { toggleFocus, isFocused, clearFocus, focusedStreamId } = useFocusedStream();
+const {
+  toggleFocus,
+  isFocused,
+  clearFocus,
+  focusedStreamId,
+  audioStreamId,
+  isAudioActive,
+  activateStream,
+  needsActivation,
+} = useFocusedStream();
+const { isDragging } = useDragAndDrop();
 const { captureStream, isCapturing } = useScreenshot();
 const { t } = useI18n();
-const { recordingQuality, nativePlayerEnabled, adblockEnabled } = usePreferences();
+const {
+  recordingQuality,
+  nativePlayerEnabled,
+  adblockEnabled,
+  isChatOverlayOn,
+  toggleChatOverlay,
+} = usePreferences();
 const { startRecording, stopRecording, isRecording, getState, isDependenciesInstalled } =
   useRecording();
 const { isOnline, onReconnect } = useNetworkStatus();
@@ -180,6 +199,18 @@ const resolvedChannelKey = computed(() => {
 const isFavorite = computed(() => !!matchingFavorite.value);
 
 const isStreamFocused = computed(() => isFocused(props.channelid));
+
+// Twitch and Kick chat (live or replayed) can be overlaid on the tile; YouTube chat is embed-only
+const canOverlayChat = computed(() => props.platform === "twitch" || props.platform === "kick");
+const overlayPlatform = computed(() => (props.platform === "kick" ? "kick" : "twitch"));
+const chatOverlayOn = computed(() => canOverlayChat.value && isChatOverlayOn(props.channelid));
+
+// native players fullscreen the whole tile, which brings the chat overlay along
+const isTileFullscreen = ref(false);
+const onFullscreenChange = () => {
+  isTileFullscreen.value =
+    !!containerRef.value && document.fullscreenElement === containerRef.value;
+};
 
 // true when another stream is focused and this one is miniaturized in the sidebar
 const isMiniaturized = computed(() => !!focusedStreamId.value && !isFocused(props.channelid));
@@ -429,6 +460,7 @@ onMounted(() => {
   }, 4000);
 
   window.addEventListener("multistream-screenshot", onScreenshotEvent);
+  document.addEventListener("fullscreenchange", onFullscreenChange);
 });
 
 onUnmounted(() => {
@@ -437,7 +469,9 @@ onUnmounted(() => {
   if (reloadFallbackTimer) clearTimeout(reloadFallbackTimer);
   if (reloadHandshakeTimer) clearTimeout(reloadHandshakeTimer);
   if (reloadCheckTimer) clearTimeout(reloadCheckTimer);
+  if (audioStateTimer) clearTimeout(audioStateTimer);
   window.removeEventListener("multistream-screenshot", onScreenshotEvent);
+  document.removeEventListener("fullscreenchange", onFullscreenChange);
 });
 
 function onScreenshotEvent() {
@@ -526,6 +560,62 @@ const handleFavoriteStream = async (_channel: string, platform: Platform) => {
   }
 };
 
+// --- audio focus: clicking a tile gives it the audio (and the big viewer, when that is open) ---
+
+// mirrors the selector the injected audio_focus.js uses inside embeds
+const CONTROL_SELECTOR =
+  'button, a, input, select, textarea, label, [contenteditable="true"], [role="button"], [role="slider"], [role="menu"], [role="menuitem"], [role="menuitemradio"], [role="checkbox"], [role="switch"], [role="tab"], [role="option"], [role="listbox"]';
+// the selecting press is held back from the player until it is released, however long it lasts;
+// a quick second click after that is held back too
+const SWALLOW_MS = 400;
+let swallowing = false;
+let swallowUntil = 0;
+
+const postAudioState = () => {
+  const frame = containerRef.value?.querySelector("iframe")?.contentWindow;
+  if (!frame) return;
+  const active = audioStreamId.value === null ? null : isAudioActive(props.channelid);
+  frame.postMessage({ type: "MULTISTREAM_AUDIO_STATE", active }, "*");
+};
+
+let audioStateTimer: ReturnType<typeof setTimeout> | null = null;
+
+// embeds rebuild their player after load, so tell them again once they've settled
+const onFrameLoad = (e: Event) => {
+  if (!(e.target instanceof HTMLIFrameElement)) return;
+  postAudioState();
+  if (audioStateTimer) clearTimeout(audioStateTimer);
+  audioStateTimer = setTimeout(postAudioState, 3000);
+};
+
+watch(audioStreamId, postAudioState);
+
+// native players (VODs, built-in Twitch): the first press on an inactive tile selects it
+const onTilePress = (e: PointerEvent) => {
+  swallowing = false;
+  if (e.button !== 0 || isDragging.value || !needsActivation(props.channelid)) return;
+  if ((e.target as Element | null)?.closest?.(CONTROL_SELECTOR)) return;
+  swallowing = true;
+  e.stopPropagation();
+  e.preventDefault();
+  activateStream(props.channelid);
+};
+
+const cancelSwallow = () => {
+  swallowing = false;
+};
+
+const swallowFollowUp = (e: Event) => {
+  if (swallowing && (e.type === "pointerup" || e.type === "mouseup")) {
+    swallowing = false;
+    swallowUntil = Date.now() + SWALLOW_MS;
+  } else if (!swallowing && Date.now() >= swallowUntil) {
+    return;
+  }
+  e.stopPropagation();
+  e.preventDefault();
+};
+
 const handleFocusStream = (channelId: string) => {
   if (isFocused(channelId)) {
     clearFocus();
@@ -565,6 +655,14 @@ const handleCopyUrl = async () => {
     class="relative h-full group"
     @mouseenter="isHovered = true"
     @mouseleave="isHovered = false"
+    @load.capture="onFrameLoad"
+    @pointerdown.capture="onTilePress"
+    @mousedown.capture="swallowFollowUp"
+    @pointerup.capture="swallowFollowUp"
+    @mouseup.capture="swallowFollowUp"
+    @click.capture="swallowFollowUp"
+    @dblclick.capture="swallowFollowUp"
+    @pointercancel.capture="cancelSwallow"
   >
     <!-- offline connection veil -->
     <Transition name="fade">
@@ -742,8 +840,9 @@ const handleCopyUrl = async () => {
       </div>
     </Transition>
 
-    <!-- stream controls - appears on hover -->
+    <!-- stream controls - appears on hover (not in the player's fullscreen, where it would stick) -->
     <div
+      v-if="!isTileFullscreen"
       :class="[
         'absolute z-50 flex flex-col opacity-0 translate-x-2 transition-all duration-300 group-hover:opacity-100 group-hover:translate-x-0 pointer-events-none',
         isMiniaturized ? 'top-1 right-1 gap-1' : 'top-2 right-2 gap-2',
@@ -856,6 +955,28 @@ const handleCopyUrl = async () => {
           <Circle v-else :class="isMiniaturized ? 'size-3' : 'size-4'" />
         </button>
       </template>
+      <!-- chat overlay toggle -->
+      <button
+        v-if="canOverlayChat"
+        :data-testid="`chat-overlay-toggle-${channel}`"
+        :aria-label="
+          chatOverlayOn ? $t('stream.actions.hideChatOverlay') : $t('stream.actions.chatOverlay')
+        "
+        :title="
+          chatOverlayOn ? $t('stream.actions.hideChatOverlay') : $t('stream.actions.chatOverlay')
+        "
+        :aria-pressed="chatOverlayOn"
+        :class="[
+          'pointer-events-auto flex items-center justify-center rounded-lg backdrop-blur-sm border transition-all duration-200 hover:scale-110 cursor-pointer',
+          isMiniaturized ? 'size-5' : 'size-8',
+          chatOverlayOn
+            ? 'bg-sky-500/80 text-white border-sky-400/50 hover:bg-sky-600/80'
+            : 'bg-black/60 text-white/80 border-white/10 hover:bg-sky-500/80 hover:text-white hover:border-sky-400/50',
+        ]"
+        @click="toggleChatOverlay(channelid)"
+      >
+        <MessageSquareText :class="isMiniaturized ? 'size-3' : 'size-4'" />
+      </button>
       <!-- focus mode button -->
       <button
         :aria-label="isStreamFocused ? $t('stream.actions.unfocus') : $t('stream.actions.focus')"
@@ -874,7 +995,7 @@ const handleCopyUrl = async () => {
 
     <!-- watch timer bottom overlay bar - appears on hover -->
     <div
-      v-if="!props.isVod"
+      v-if="!props.isVod && !isTileFullscreen"
       :class="[
         'absolute bottom-3 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-[9px] text-white/70 pointer-events-none opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 z-10 shadow-lg flex items-center gap-1.5',
         isMiniaturized ? 'scale-90 bottom-1' : '',
@@ -896,6 +1017,15 @@ const handleCopyUrl = async () => {
         {{ displayWatchTime }}
       </span>
     </div>
+
+    <ChatOverlay
+      v-if="chatOverlayOn && (!isMiniaturized || isTileFullscreen)"
+      :stream-id="channelid"
+      :channel="channel"
+      :platform="overlayPlatform"
+      :is-vod="isVod"
+      :compact="!isStreamFocused && !isTileFullscreen"
+    />
 
     <slot />
   </div>

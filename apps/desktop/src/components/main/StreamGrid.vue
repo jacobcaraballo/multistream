@@ -14,7 +14,7 @@ import { computed, watch, nextTick, ref } from "vue";
 import { useEventListener } from "@vueuse/core";
 
 const { streams, gridClass, isLeaving, getStreamKey } = useStreams();
-const { focusedStreamId, isFocused } = useFocusedStream();
+const { focusedStreamId, isFocused, activateStream } = useFocusedStream();
 const {
   draggingId,
   overId,
@@ -33,6 +33,31 @@ watch(nativePlayerEnabled, () => {
 });
 
 useEventListener(window, "mouseup", onGlobalMouseUp);
+
+/** The live tile whose embed contains `source` (clicks may come from a frame nested in the embed). */
+const streamIdForFrame = (source: MessageEvent["source"]): string | null => {
+  if (!source) return null;
+  const frames = document.querySelectorAll<HTMLIFrameElement>("[data-stream-id] iframe");
+  for (const frame of frames) {
+    let win: Window | null = source as Window;
+    for (let depth = 0; win && depth < 6; depth++) {
+      if (win === frame.contentWindow) {
+        const id = frame.closest<HTMLElement>("[data-stream-id]")?.dataset.streamId ?? null;
+        return id && streams.value.some((s) => s.id === id) ? id : null;
+      }
+      if (win === win.parent) break;
+      win = win.parent;
+    }
+  }
+  return null;
+};
+
+// a click inside an embed (sent by the injected audio_focus.js) selects that tile
+useEventListener(window, "message", (e: MessageEvent) => {
+  if (e.data?.type !== "MULTISTREAM_FRAME_ACTIVATE" || isDragging.value) return;
+  const id = streamIdForFrame(e.source);
+  if (id) activateStream(id);
+});
 
 type DomStream = Stream & { _isDead?: boolean };
 const domStreams = ref<DomStream[]>([]);
