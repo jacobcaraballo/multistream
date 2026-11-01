@@ -314,6 +314,29 @@ describe("usePreferences composable unit tests", () => {
     expect(sut.chatOverlayStreamIds.value).toEqual([]);
   });
 
+  it("should remember a dragged chat overlay, put it back on reset, and forget removed streams", () => {
+    // Act
+    sut.setChatOverlayPosition("a", { right: 0.4, bottom: 0.2 });
+    sut.setChatOverlayPosition("b", { right: 0.1, bottom: 0.1 });
+
+    // Assert
+    expect(sut.chatOverlayPositions.value.a).toEqual({ right: 0.4, bottom: 0.2 });
+
+    // Act
+    sut.setChatOverlayPosition("b", null);
+    sut.pruneChatOverlays(["b"]);
+
+    // Assert
+    expect(sut.chatOverlayPositions.value).toEqual({});
+
+    // Act
+    sut.setChatOverlayPosition("c", { right: 0.3, bottom: 0.3 });
+    sut.resetPreferences();
+
+    // Assert
+    expect(sut.chatOverlayPositions.value).toEqual({});
+  });
+
   it("should reset skip seconds and overlays to defaults", () => {
     // Arrange
     sut.setVodSkipForwardSeconds(45);

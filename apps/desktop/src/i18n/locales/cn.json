@@ -634,7 +634,8 @@
     }
   },
   "chatOverlay": {
-    "twitchSignIn": "在设置中连接 Twitch 聊天即可在此查看"
+    "twitchSignIn": "在设置中连接 Twitch 聊天即可在此查看",
+    "move": "拖动以移动聊天（双击重置）"
   },
   "pip": {
     "title": "画中画",

@@ -18,6 +18,13 @@ export interface Preferences {
   vodSkipForwardSeconds: number;
   vodSkipBackSeconds: number;
   chatOverlayStreamIds: string[];
+  chatOverlayPositions: Record<string, ChatOverlayPosition>;
+}
+
+/** Where a dragged chat overlay sits: its right and bottom edge, as fractions of the tile. */
+export interface ChatOverlayPosition {
+  right: number;
+  bottom: number;
 }
 
 export const MIN_SKIP_SECONDS = 1;
@@ -48,6 +55,7 @@ const defaultPreferences: Preferences = {
   vodSkipForwardSeconds: 10,
   vodSkipBackSeconds: 5,
   chatOverlayStreamIds: [],
+  chatOverlayPositions: {},
 };
 
 const _usePreferences = () => {
@@ -149,6 +157,14 @@ const _usePreferences = () => {
   ]);
 
   /**
+   * @brief Dragged chat overlay positions by stream id (absent: the default bottom-right spot)
+   */
+  const chatOverlayPositions = useStorage<Record<string, ChatOverlayPosition>>(
+    "preferences.chatOverlayPositions",
+    {}
+  );
+
+  /**
    * @brief Set the selected chat
    *
    * @param chatId The chat ID
@@ -197,10 +213,22 @@ const _usePreferences = () => {
       : [...chatOverlayStreamIds.value, streamId];
   };
 
+  /** Move a stream's chat overlay; null puts it back at the default spot. */
+  const setChatOverlayPosition = (streamId: string, position: ChatOverlayPosition | null) => {
+    const { [streamId]: _old, ...rest } = chatOverlayPositions.value;
+    chatOverlayPositions.value = position ? { ...rest, [streamId]: position } : rest;
+  };
+
   /** Forget overlays of streams that no longer exist. */
   const pruneChatOverlays = (streamIds: string[]) => {
     const kept = chatOverlayStreamIds.value.filter((id) => streamIds.includes(id));
     if (kept.length !== chatOverlayStreamIds.value.length) chatOverlayStreamIds.value = kept;
+    const positions = Object.entries(chatOverlayPositions.value);
+    if (positions.some(([id]) => !streamIds.includes(id))) {
+      chatOverlayPositions.value = Object.fromEntries(
+        positions.filter(([id]) => streamIds.includes(id))
+      );
+    }
   };
 
   /**
@@ -278,6 +306,7 @@ const _usePreferences = () => {
     vodSkipForwardSeconds.value = defaultPreferences.vodSkipForwardSeconds;
     vodSkipBackSeconds.value = defaultPreferences.vodSkipBackSeconds;
     chatOverlayStreamIds.value = [...defaultPreferences.chatOverlayStreamIds];
+    chatOverlayPositions.value = {};
   };
 
   return {
@@ -314,6 +343,8 @@ const _usePreferences = () => {
     toggleImmersiveMode,
     setVodSkipForwardSeconds,
     setVodSkipBackSeconds,
+    chatOverlayPositions,
+    setChatOverlayPosition,
     isChatOverlayOn,
     toggleChatOverlay,
     pruneChatOverlays,

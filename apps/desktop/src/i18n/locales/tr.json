@@ -634,7 +634,8 @@
     }
   },
   "chatOverlay": {
-    "twitchSignIn": "Sohbeti burada görmek için Ayarlar'dan Twitch sohbetini bağlayın"
+    "twitchSignIn": "Sohbeti burada görmek için Ayarlar'dan Twitch sohbetini bağlayın",
+    "move": "Sohbeti taşımak için sürükleyin (sıfırlamak için çift tıklayın)"
   },
   "pip": {
     "title": "Resim içinde resim",

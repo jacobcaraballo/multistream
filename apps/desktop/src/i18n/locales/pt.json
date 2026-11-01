@@ -634,7 +634,8 @@
     }
   },
   "chatOverlay": {
-    "twitchSignIn": "Conecte o chat da Twitch nas Configurações para ver o chat aqui"
+    "twitchSignIn": "Conecte o chat da Twitch nas Configurações para ver o chat aqui",
+    "move": "Arraste para mover o chat (clique duplo para redefinir)"
   },
   "pip": {
     "title": "Picture-in-picture",
