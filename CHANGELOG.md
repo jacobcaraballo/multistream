@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.12] - 2026-11-01
+
+### Features
+
+- **player**: Drag the chat overlay anywhere on its tile ([abe8e0b](https://github.com/jacobcaraballo/multistream/commit/abe8e0bebe0390bb0a523c2d3b486681249b28cf))
+
 ## [0.19.11] - 2026-10-31
 
 ### Bug Fixes
