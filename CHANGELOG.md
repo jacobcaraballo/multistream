@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.13] - 2026-11-02
+
+### Bug Fixes
+
+- **player**: Hide the mouse cursor in fullscreen after a moment of rest ([d24fd7e](https://github.com/jacobcaraballo/multistream/commit/d24fd7eab5e774b0e229724dce9c37958130a6eb))
+
 ## [0.19.12] - 2026-11-01
 
 ### Features
