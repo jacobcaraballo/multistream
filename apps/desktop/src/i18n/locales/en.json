@@ -635,7 +635,9 @@
   },
   "chatOverlay": {
     "twitchSignIn": "Connect Twitch chat in Settings to see chat here",
-    "move": "Drag to move the chat (double-click to reset)"
+    "move": "Drag to move the chat (double-click to reset)",
+    "fontSmaller": "Smaller chat text",
+    "fontLarger": "Larger chat text"
   },
   "pip": {
     "title": "Picture in picture",

@@ -1,7 +1,14 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from "vue";
-import { GripHorizontal } from "@lucide/vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { useEventListener } from "@vueuse/core";
+import { GripHorizontal, Minus, Plus } from "@lucide/vue";
 import { usePreferences, type ChatOverlayPosition } from "@/composables/usePreferences";
+import {
+  normalizeFontScale,
+  placementStyle,
+  snapPosition,
+  type Geometry,
+} from "@/lib/chatOverlayLayout";
 import { useI18n } from "vue-i18n";
 import { useUnifiedChat } from "@/composables/useUnifiedChat";
 import { kickChannelMessages } from "@/composables/useKickChat";
@@ -24,31 +31,56 @@ const COMPACT_LINES = 5;
 const { t } = useI18n();
 const { parseMessage, loadChannelEmotes } = useEmotes();
 const { authenticated: twitchSignedIn } = useTwitchAuth();
-const { chatOverlayPositions, setChatOverlayPosition } = usePreferences();
+const {
+  chatOverlayPositions,
+  chatOverlayFontScale,
+  setChatOverlayPosition,
+  stepChatOverlayFontScale,
+} = usePreferences();
 
-// dragging: the overlay is click-through, so only the small grip takes the pointer
+// dragging: the overlay is click-through, so only the small control bar takes the pointer
 const KEY_STEP = 0.03;
+// where an unmoved overlay sits above the tile's bottom (clear of the player controls)
+const bottomGap = computed(() => (props.compact ? 60 : 80));
 const overlayRef = ref<HTMLElement | null>(null);
 const drag = ref<ChatOverlayPosition | null>(null);
 let dragStart: { x: number; y: number; pos: ChatOverlayPosition } | null = null;
 
 const dragged = computed(() => drag.value ?? chatOverlayPositions.value[props.streamId] ?? null);
+const scale = computed(() => normalizeFontScale(chatOverlayFontScale.value));
 
-const overlayStyle = computed(() =>
-  dragged.value
-    ? { right: `${dragged.value.right * 100}%`, bottom: `${dragged.value.bottom * 100}%` }
-    : {}
-);
+const baseWidth = computed(() => (props.compact ? 240 : 320));
+const basePercent = computed(() => (props.compact ? 45 : 38));
+const overlayStyle = computed(() => ({
+  // bigger text gets a wider box so lines don't wrap into a tall column
+  width: `min(${baseWidth.value * scale.value}px, ${Math.min(90, basePercent.value * scale.value)}%)`,
+  ...(dragged.value
+    ? placementStyle(dragged.value, bottomGap.value)
+    : { right: "0.5rem", bottom: `${bottomGap.value}px` }),
+}));
+const fontSize = computed(() => `${(props.compact ? 11 : 13) * scale.value}px`);
 
-/** Keeps the overlay inside its tile. */
-function clampPosition(pos: ChatOverlayPosition): ChatOverlayPosition {
+function tileGeometry(): Geometry | null {
   const el = overlayRef.value;
   const tile = el?.offsetParent?.getBoundingClientRect();
   const box = el?.getBoundingClientRect();
-  if (!tile?.width || !tile.height || !box) return pos;
+  if (!tile?.width || !tile.height || !box) return null;
   return {
-    right: Math.min(Math.max(pos.right, 0), Math.max(0, 1 - box.width / tile.width)),
-    bottom: Math.min(Math.max(pos.bottom, 0), Math.max(0, 1 - box.height / tile.height)),
+    tileWidth: tile.width,
+    tileHeight: tile.height,
+    boxWidth: box.width,
+    boxHeight: box.height,
+    bottomGap: bottomGap.value,
+  };
+}
+
+/** Keeps the overlay inside its tile. */
+function clampPosition(pos: ChatOverlayPosition): ChatOverlayPosition {
+  const g = tileGeometry();
+  if (!g) return pos;
+  return {
+    right: Math.min(Math.max(pos.right, 0), Math.max(0, 1 - g.boxWidth / g.tileWidth)),
+    bottom: Math.min(Math.max(pos.bottom, 0), Math.max(0, 1 - g.boxHeight / g.tileHeight)),
   };
 }
 
@@ -65,12 +97,14 @@ function currentPosition(): ChatOverlayPosition {
 }
 
 function onMove(e: PointerEvent) {
-  const tile = overlayRef.value?.offsetParent?.getBoundingClientRect();
-  if (!dragStart || !tile?.width || !tile.height) return;
-  drag.value = clampPosition({
-    right: dragStart.pos.right - (e.clientX - dragStart.x) / tile.width,
-    bottom: dragStart.pos.bottom - (e.clientY - dragStart.y) / tile.height,
+  const g = tileGeometry();
+  if (!dragStart || !g) return;
+  const free = clampPosition({
+    right: dragStart.pos.right - (e.clientX - dragStart.x) / g.tileWidth,
+    bottom: dragStart.pos.bottom - (e.clientY - dragStart.y) / g.tileHeight,
   });
+  // near a side, corner or centre line it pins there
+  drag.value = snapPosition(free, g);
 }
 
 function stopDrag(save: boolean) {
@@ -80,6 +114,7 @@ function stopDrag(save: boolean) {
   if (save && drag.value) setChatOverlayPosition(props.streamId, drag.value);
   drag.value = null;
   dragStart = null;
+  wake();
 }
 const onUp = () => stopDrag(true);
 const onCancel = () => stopDrag(false);
@@ -114,17 +149,70 @@ function onGripKeydown(e: KeyboardEvent) {
   if (!arrow) return;
   e.preventDefault();
   e.stopPropagation();
-  const pos = dragged.value ?? currentPosition();
+  // measured, so a pinned overlay starts from where it really is; the nudge unpins it
+  const pos = currentPosition();
   setChatOverlayPosition(
     props.streamId,
-    clampPosition({
-      right: pos.right + arrow[0] * KEY_STEP,
-      bottom: pos.bottom - arrow[1] * KEY_STEP,
-    })
+    snapPosition(
+      clampPosition({
+        right: pos.right + arrow[0] * KEY_STEP,
+        bottom: pos.bottom - arrow[1] * KEY_STEP,
+      }),
+      tileGeometry() ?? { tileWidth: 1, tileHeight: 1, boxWidth: 0, boxHeight: 0, bottomGap: 0 }
+    )
   );
 }
 
-onBeforeUnmount(() => stopDrag(false));
+// the control bar shows while the pointer is active over the tile and fades with the player's own
+// controls; the grid relays pointer moves over embeds, which the page itself never sees
+const CONTROLS_MS = 2500;
+const controlsShown = ref(false);
+const overBar = ref(false);
+const barFocused = ref(false);
+let controlsTimer: ReturnType<typeof setTimeout> | null = null;
+
+function hideControls() {
+  if (controlsTimer) clearTimeout(controlsTimer);
+  controlsTimer = null;
+  controlsShown.value = false;
+}
+
+function wake() {
+  if (controlsTimer) clearTimeout(controlsTimer);
+  controlsShown.value = true;
+  controlsTimer = setTimeout(() => {
+    controlsTimer = null;
+    if (!drag.value && !overBar.value && !barFocused.value) controlsShown.value = false;
+  }, CONTROLS_MS);
+}
+
+const barVisible = computed(
+  () => controlsShown.value || !!drag.value || overBar.value || barFocused.value
+);
+
+onMounted(() => {
+  const tile = overlayRef.value?.offsetParent;
+  if (!tile) return;
+  tile.addEventListener("pointermove", wake, { passive: true });
+  tile.addEventListener("pointerenter", wake, { passive: true });
+  tile.addEventListener("pointerleave", hideControls, { passive: true });
+  stopTile = () => {
+    tile.removeEventListener("pointermove", wake);
+    tile.removeEventListener("pointerenter", wake);
+    tile.removeEventListener("pointerleave", hideControls);
+  };
+});
+let stopTile: (() => void) | null = null;
+
+useEventListener(window, "multistream-tile-activity", (e: Event) => {
+  if ((e as CustomEvent<{ streamId: string }>).detail?.streamId === props.streamId) wake();
+});
+
+onBeforeUnmount(() => {
+  stopDrag(false);
+  stopTile?.();
+  if (controlsTimer) clearTimeout(controlsTimer);
+});
 
 // live chat comes from the connections the sidebar already holds; this only reads it
 // (Twitch: the signed-in chat panes keep useUnifiedChat alive; Kick: the joined chats' store)
@@ -174,22 +262,19 @@ const needsTwitchSignIn = computed(
   <div
     ref="overlayRef"
     class="chat-overlay-box pointer-events-none absolute z-10 flex min-h-6 flex-col justify-end"
-    :class="[
-      compact ? 'w-[min(240px,45%)] max-h-[36%]' : 'w-[min(320px,38%)] max-h-[35%]',
-      dragged ? '' : compact ? 'right-2 bottom-15' : 'right-2 bottom-20',
-    ]"
+    :class="compact ? 'max-h-[36%]' : 'max-h-[35%]'"
     :style="overlayStyle"
     :data-testid="`chat-overlay-${streamId}`"
   >
     <div class="chat-overlay flex max-h-full flex-col justify-end overflow-hidden" aria-live="off">
-      <p v-if="needsTwitchSignIn && !lines.length" class="text-[11px] text-white/80">
+      <p v-if="needsTwitchSignIn && !lines.length" class="text-white/80" :style="{ fontSize }">
         {{ t("chatOverlay.twitchSignIn") }}
       </p>
       <p
         v-for="line in lines"
         :key="line.id"
-        class="chat-overlay-line break-words text-white"
-        :class="compact ? 'text-[11px] leading-snug' : 'text-[13px] leading-snug'"
+        class="chat-overlay-line break-words leading-snug text-white"
+        :style="{ fontSize }"
       >
         <span class="font-bold" :style="{ color: line.color }">{{ line.name }}</span
         ><span class="text-white/70">: </span>
@@ -208,20 +293,53 @@ const needsTwitchSignIn = computed(
       </p>
     </div>
 
-    <!-- grip: shows while the pointer is over the tile (or focused); drag to move -->
+    <!-- controls: show while the pointer is active over the tile, like the player's own -->
     <div
-      role="button"
-      tabindex="0"
-      class="chat-overlay-grip pointer-events-auto absolute -top-1 right-0 flex h-5 w-8 cursor-grab items-center justify-center rounded-md bg-black/60 text-white/80 opacity-0 transition-opacity hover:bg-black/80 hover:text-white focus-visible:opacity-100 group-hover:opacity-100"
-      :class="{ 'cursor-grabbing opacity-100': drag }"
-      :aria-label="t('chatOverlay.move')"
-      :title="t('chatOverlay.move')"
-      :data-testid="`chat-overlay-grip-${streamId}`"
-      @pointerdown="startDrag"
-      @dblclick.stop="setChatOverlayPosition(streamId, null)"
-      @keydown="onGripKeydown"
+      class="absolute -top-1 right-0 flex h-5 items-center gap-0.5 rounded-md bg-black/60 px-0.5 text-white/80 transition-opacity duration-300"
+      :class="barVisible ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'"
+      :data-testid="`chat-overlay-controls-${streamId}`"
+      @pointerenter="overBar = true"
+      @pointerleave="
+        overBar = false;
+        wake();
+      "
+      @focusin="barFocused = true"
+      @focusout="barFocused = false"
     >
-      <GripHorizontal class="size-3.5" aria-hidden="true" />
+      <button
+        type="button"
+        class="flex size-4 items-center justify-center rounded hover:bg-white/15 hover:text-white cursor-pointer"
+        :aria-label="t('chatOverlay.fontSmaller')"
+        :title="t('chatOverlay.fontSmaller')"
+        :data-testid="`chat-overlay-smaller-${streamId}`"
+        @click.stop="stepChatOverlayFontScale(-1)"
+      >
+        <Minus class="size-3" aria-hidden="true" />
+      </button>
+      <button
+        type="button"
+        class="flex size-4 items-center justify-center rounded hover:bg-white/15 hover:text-white cursor-pointer"
+        :aria-label="t('chatOverlay.fontLarger')"
+        :title="t('chatOverlay.fontLarger')"
+        :data-testid="`chat-overlay-larger-${streamId}`"
+        @click.stop="stepChatOverlayFontScale(1)"
+      >
+        <Plus class="size-3" aria-hidden="true" />
+      </button>
+      <div
+        role="button"
+        tabindex="0"
+        class="flex h-4 w-6 cursor-grab items-center justify-center rounded hover:bg-white/15 hover:text-white"
+        :class="{ 'cursor-grabbing': drag }"
+        :aria-label="t('chatOverlay.move')"
+        :title="t('chatOverlay.move')"
+        :data-testid="`chat-overlay-grip-${streamId}`"
+        @pointerdown="startDrag"
+        @dblclick.stop="setChatOverlayPosition(streamId, null)"
+        @keydown="onGripKeydown"
+      >
+        <GripHorizontal class="size-3.5" aria-hidden="true" />
+      </div>
     </div>
 
     <Teleport to="body">

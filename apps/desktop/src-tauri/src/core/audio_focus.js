@@ -368,6 +368,26 @@
     { capture: true, passive: false }
   );
 
+  // Mouse moves over an embed never reach the app, so the tile's own overlays (the chat overlay's
+  // grip) can't tell the pointer is active; the frame reports it, throttled.
+  var ACTIVITY = "MULTISTREAM_FRAME_ACTIVITY";
+  var lastActivity = 0;
+  window.addEventListener(
+    "mousemove",
+    function () {
+      if (!isTile || window.__isGraveyard) return;
+      var now = Date.now();
+      if (now - lastActivity < 300) return;
+      lastActivity = now;
+      try {
+        window.top.postMessage({ type: ACTIVITY }, "*");
+      } catch (err) {
+        // the app is gone
+      }
+    },
+    { capture: true, passive: true }
+  );
+
   // a player rebuilt after an ad starts on the shared saved quality again
   document.addEventListener(
     "playing",

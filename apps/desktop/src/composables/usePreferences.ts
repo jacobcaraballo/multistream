@@ -1,4 +1,12 @@
 import { createSharedComposable, useStorage } from "@vueuse/core";
+import {
+  DEFAULT_FONT_SCALE,
+  normalizeFontScale,
+  stepFontScale,
+  type ChatOverlayPosition,
+} from "@/lib/chatOverlayLayout";
+
+export type { ChatOverlayPosition };
 
 export interface Preferences {
   selectedChat: string;
@@ -19,12 +27,7 @@ export interface Preferences {
   vodSkipBackSeconds: number;
   chatOverlayStreamIds: string[];
   chatOverlayPositions: Record<string, ChatOverlayPosition>;
-}
-
-/** Where a dragged chat overlay sits: its right and bottom edge, as fractions of the tile. */
-export interface ChatOverlayPosition {
-  right: number;
-  bottom: number;
+  chatOverlayFontScale: number;
 }
 
 export const MIN_SKIP_SECONDS = 1;
@@ -56,6 +59,7 @@ const defaultPreferences: Preferences = {
   vodSkipBackSeconds: 5,
   chatOverlayStreamIds: [],
   chatOverlayPositions: {},
+  chatOverlayFontScale: DEFAULT_FONT_SCALE,
 };
 
 const _usePreferences = () => {
@@ -165,6 +169,14 @@ const _usePreferences = () => {
   );
 
   /**
+   * @brief Text size of every chat overlay, as a multiple of its default
+   */
+  const chatOverlayFontScale = useStorage<number>(
+    "preferences.chatOverlayFontScale",
+    defaultPreferences.chatOverlayFontScale
+  );
+
+  /**
    * @brief Set the selected chat
    *
    * @param chatId The chat ID
@@ -211,6 +223,13 @@ const _usePreferences = () => {
     chatOverlayStreamIds.value = isChatOverlayOn(streamId)
       ? chatOverlayStreamIds.value.filter((id) => id !== streamId)
       : [...chatOverlayStreamIds.value, streamId];
+  };
+
+  const stepChatOverlayFontScale = (direction: 1 | -1) => {
+    chatOverlayFontScale.value = stepFontScale(
+      normalizeFontScale(chatOverlayFontScale.value),
+      direction
+    );
   };
 
   /** Move a stream's chat overlay; null puts it back at the default spot. */
@@ -307,6 +326,7 @@ const _usePreferences = () => {
     vodSkipBackSeconds.value = defaultPreferences.vodSkipBackSeconds;
     chatOverlayStreamIds.value = [...defaultPreferences.chatOverlayStreamIds];
     chatOverlayPositions.value = {};
+    chatOverlayFontScale.value = defaultPreferences.chatOverlayFontScale;
   };
 
   return {
@@ -344,7 +364,9 @@ const _usePreferences = () => {
     setVodSkipForwardSeconds,
     setVodSkipBackSeconds,
     chatOverlayPositions,
+    chatOverlayFontScale,
     setChatOverlayPosition,
+    stepChatOverlayFontScale,
     isChatOverlayOn,
     toggleChatOverlay,
     pruneChatOverlays,

@@ -635,7 +635,9 @@
   },
   "chatOverlay": {
     "twitchSignIn": "Verbinde den Twitch-Chat in den Einstellungen, um ihn hier zu sehen",
-    "move": "Zum Verschieben des Chats ziehen (Doppelklick zum Zurücksetzen)"
+    "move": "Zum Verschieben des Chats ziehen (Doppelklick zum Zurücksetzen)",
+    "fontSmaller": "Kleinere Chat-Schrift",
+    "fontLarger": "Größere Chat-Schrift"
   },
   "pip": {
     "title": "Bild-in-Bild",

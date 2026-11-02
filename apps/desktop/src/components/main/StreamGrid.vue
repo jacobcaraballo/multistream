@@ -62,6 +62,15 @@ useEventListener(window, "message", (e: MessageEvent) => {
     const id = streamIdForFrame(e.source);
     if (id) layout.selectTile(id);
   }
+  // the pointer moved over an embed (audio_focus.js): tile overlays follow it like the player does
+  if (e.data?.type === "MULTISTREAM_FRAME_ACTIVITY") {
+    const id = streamIdForFrame(e.source);
+    if (id)
+      window.dispatchEvent(
+        new CustomEvent("multistream-tile-activity", { detail: { streamId: id } })
+      );
+    return;
+  }
   // the wheel over an embed changed its volume (audio_focus.js): show the level on the tile
   if (e.data?.type === "MULTISTREAM_FRAME_VOLUME") {
     const id = streamIdForFrame(e.source);

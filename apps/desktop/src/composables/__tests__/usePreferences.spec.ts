@@ -337,6 +337,27 @@ describe("usePreferences composable unit tests", () => {
     expect(sut.chatOverlayPositions.value).toEqual({});
   });
 
+  it("should step the chat overlay text size and reset it", () => {
+    // Act
+    sut.stepChatOverlayFontScale(1);
+    sut.stepChatOverlayFontScale(1);
+
+    // Assert
+    expect(sut.chatOverlayFontScale.value).toBe(1.3);
+
+    // Act
+    sut.stepChatOverlayFontScale(-1);
+
+    // Assert
+    expect(sut.chatOverlayFontScale.value).toBe(1.15);
+
+    // Act
+    sut.resetPreferences();
+
+    // Assert
+    expect(sut.chatOverlayFontScale.value).toBe(1);
+  });
+
   it("should reset skip seconds and overlays to defaults", () => {
     // Arrange
     sut.setVodSkipForwardSeconds(45);

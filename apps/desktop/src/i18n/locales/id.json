@@ -635,7 +635,9 @@
   },
   "chatOverlay": {
     "twitchSignIn": "Hubungkan chat Twitch di Pengaturan untuk melihat chat di sini",
-    "move": "Seret untuk memindahkan obrolan (klik dua kali untuk mengatur ulang)"
+    "move": "Seret untuk memindahkan obrolan (klik dua kali untuk mengatur ulang)",
+    "fontSmaller": "Perkecil teks obrolan",
+    "fontLarger": "Perbesar teks obrolan"
   },
   "pip": {
     "title": "Gambar dalam gambar",
