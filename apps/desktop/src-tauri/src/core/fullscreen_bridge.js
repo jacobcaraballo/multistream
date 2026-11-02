@@ -84,13 +84,44 @@
     current = element;
     ensureStyle();
     element.setAttribute(MARK, "");
+    wakeCursor();
     if (!wasOn) post(true);
     announce(element);
     return Promise.resolve();
   }
 
+  // The cursor rests invisible like the player controls do: mouse moves over a frame never reach
+  // the app, so the frame hides it itself while it is fullscreen and the pointer sits still.
+  var IDLE_MS = 2500;
+  var idleTimer = 0;
+  var idleStyle = null;
+
+  function showCursor() {
+    clearTimeout(idleTimer);
+    idleTimer = 0;
+    if (idleStyle && idleStyle.parentNode) idleStyle.parentNode.removeChild(idleStyle);
+  }
+
+  function wakeCursor() {
+    if (!current) return;
+    showCursor();
+    idleTimer = setTimeout(function () {
+      if (!current) return;
+      if (!idleStyle) {
+        idleStyle = document.createElement("style");
+        idleStyle.textContent = "*,*::before,*::after{cursor:none!important}";
+      }
+      (document.head || document.documentElement).appendChild(idleStyle);
+    }, IDLE_MS);
+  }
+
+  ["mousemove", "mousedown", "wheel", "keydown"].forEach(function (type) {
+    window.addEventListener(type, wakeCursor, { capture: true, passive: true });
+  });
+
   function leave(fromApp) {
     if (!current) return Promise.resolve();
+    showCursor();
     var element = current;
     current = null;
     element.removeAttribute(MARK);

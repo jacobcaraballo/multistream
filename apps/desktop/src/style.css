@@ -169,3 +169,9 @@ body.dialog-open #app {
   filter: brightness(0.35);
   pointer-events: none;
 }
+
+/* fullscreen layout: the cursor hides along with the controls when the mouse rests */
+body.cursor-idle,
+body.cursor-idle * {
+  cursor: none !important;
+}
