@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.14] - 2026-11-02
+
+### Features
+
+- **player**: Pin the chat overlay to sides and corners, resize its text, and fade its controls ([2921fdf](https://github.com/jacobcaraballo/multistream/commit/2921fdfdbd9387e6a332e9e90b99eb443ce7fd3e))
+
 ## [0.19.13] - 2026-11-02
 
 ### Bug Fixes
