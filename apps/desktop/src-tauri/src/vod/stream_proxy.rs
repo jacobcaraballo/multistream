@@ -139,6 +139,9 @@ async fn reply<W: AsyncWrite + Unpin>(
 }
 
 async fn serve(socket: TcpStream, prefix: &str) -> std::io::Result<()> {
+    // small writes (the response head, short chunks) must not wait on Nagle + delayed ACK, which
+    // stalls loopback responses for up to 200 ms on Windows
+    let _ = socket.set_nodelay(true);
     let (mut reader, mut writer) = socket.into_split();
     let Some(head) = read_head(&mut reader).await else {
         return Ok(());

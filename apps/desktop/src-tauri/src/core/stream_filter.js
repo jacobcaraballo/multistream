@@ -182,7 +182,7 @@ if (window.location.hostname.includes("twitch.tv") || window.location.origin.inc
         scope.ClientIntegrityHeader = null;
         scope.AuthorizationHeader = undefined;
         scope.SimulatedAdsDepth = 0;
-        scope.PlayerBufferingFix = true; // nudges a live player that sits on an unchanged buffer (upstream default)
+        scope.PlayerBufferingFix = false; // its pause/play nudges made multi-stream buffering worse
         scope.PlayerBufferingDelay = 600;
         scope.PlayerBufferingSameStateCount = 3;
         scope.PlayerBufferingDangerZone = 1;

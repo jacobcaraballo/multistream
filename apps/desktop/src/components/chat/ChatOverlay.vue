@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import { useEventListener } from "@vueuse/core";
 import { GripHorizontal, Minus, Plus } from "@lucide/vue";
 import { usePreferences, type ChatOverlayPosition } from "@/composables/usePreferences";
@@ -241,17 +241,72 @@ const newest = computed(() => {
   return kickChannelMessages.value[channel] ?? [];
 });
 
-const lines = computed(() =>
-  newest.value
-    .slice(0, props.compact ? COMPACT_LINES : MAX_LINES)
-    .map((m) => ({
-      id: m.id,
+// Drawing text over a video is costly on Windows (the video can no longer go straight to the
+// display hardware), so the overlay repaints as little as it can: a busy chat updates it a few
+// times a second instead of on every message, and lines expire by a timer instead of each one
+// running its own fade animation.
+const REFRESH_MS = 300;
+const EXPIRE_MS = 20_000;
+
+type OverlayLine = {
+  id: string;
+  name: string;
+  color: string;
+  tokens: ReturnType<typeof parseMessage>;
+};
+const lines = shallowRef<OverlayLine[]>([]);
+// when each shown message first appeared, so it can leave after EXPIRE_MS
+const firstSeen = new Map<string, number>();
+let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+let expireTimer: ReturnType<typeof setTimeout> | null = null;
+
+function refresh() {
+  refreshTimer = null;
+  const now = Date.now();
+  const recent = newest.value.slice(0, props.compact ? COMPACT_LINES : MAX_LINES);
+  const kept = new Set<string>();
+  const next: OverlayLine[] = [];
+  for (const m of recent) {
+    const id = String(m.id);
+    const seen = firstSeen.get(id) ?? now;
+    kept.add(id);
+    firstSeen.set(id, seen);
+    if (now - seen >= EXPIRE_MS) continue;
+    next.push({
+      id,
       name: m.display_name || m.username,
       color: m.color || "#e5e7eb",
       tokens: parseMessage(m.message, m.emotes ?? null, m.channel),
-    }))
-    .reverse()
+    });
+  }
+  for (const id of firstSeen.keys()) if (!kept.has(id)) firstSeen.delete(id);
+  next.reverse();
+  // skip the repaint when nothing visible changed
+  const same =
+    next.length === lines.value.length && next.every((l, i) => l.id === lines.value[i]!.id);
+  if (!same) lines.value = next;
+
+  // wake again when the oldest shown line is due to leave
+  if (expireTimer) clearTimeout(expireTimer);
+  expireTimer = null;
+  const oldest = next[0] && firstSeen.get(next[0].id);
+  if (oldest !== undefined) {
+    expireTimer = setTimeout(refresh, Math.max(50, oldest + EXPIRE_MS - Date.now()));
+  }
+}
+
+watch(
+  newest,
+  () => {
+    if (!refreshTimer) refreshTimer = setTimeout(refresh, REFRESH_MS);
+  },
+  { immediate: true }
 );
+watch(() => props.compact, refresh);
+onBeforeUnmount(() => {
+  if (refreshTimer) clearTimeout(refreshTimer);
+  if (expireTimer) clearTimeout(expireTimer);
+});
 
 const needsTwitchSignIn = computed(
   () => !props.isVod && props.platform === "twitch" && !twitchSignedIn.value
@@ -271,9 +326,10 @@ const needsTwitchSignIn = computed(
         {{ t("chatOverlay.twitchSignIn") }}
       </p>
       <p
-        v-for="line in lines"
+        v-for="(line, lineIndex) in lines"
         :key="line.id"
-        class="chat-overlay-line break-words leading-snug text-white"
+        class="break-words leading-snug text-white"
+        :class="{ 'opacity-60': lineIndex === 0 && lines.length > 3 }"
         :style="{ fontSize }"
       >
         <span class="font-bold" :style="{ color: line.color }">{{ line.name }}</span
@@ -350,30 +406,8 @@ const needsTwitchSignIn = computed(
 
 <style scoped>
 .chat-overlay {
-  /* fade the oldest lines out at the top */
-  mask-image: linear-gradient(to bottom, transparent 0, #000 1.5rem);
-  text-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.95),
-    0 0 4px rgba(0, 0, 0, 0.8);
-}
-
-/* each line fades away on its own after a while, so a quiet chat clears the screen */
-.chat-overlay-line {
-  animation:
-    chat-overlay-fade 0.25s ease-out,
-    chat-overlay-expire 1s ease-in 20s forwards;
-}
-
-@keyframes chat-overlay-fade {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-}
-
-@keyframes chat-overlay-expire {
-  to {
-    opacity: 0;
-  }
+  /* one cheap shadow; nothing here animates, so the text only repaints when lines change */
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95);
+  contain: layout paint;
 }
 </style>
