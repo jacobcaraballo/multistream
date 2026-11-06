@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.16] - 2026-11-06
+
+### Features
+
+- **vods**: Show Twitch chapters on the seek bar and jump between them ([2ecc5ba](https://github.com/jacobcaraballo/multistream/commit/2ecc5ba63bbc6bba62bd9f6f7dd0b3ae77f095c8))
+
 ## [0.19.15] - 2026-11-03
 
 ### Bug Fixes
