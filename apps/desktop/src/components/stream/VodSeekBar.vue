@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 import { formatClock } from "@/lib/vod";
 import type { PreviewFrame } from "@/lib/vodPreviews";
+import { chapterBreaks, chapterIndexAt, type VodChapter } from "@/lib/vodChapters";
 import { usePreferences } from "@/composables/usePreferences";
 import VodPreviewThumb from "./VodPreviewThumb.vue";
 
@@ -16,6 +17,8 @@ const props = defineProps<{
   previewFor?: (seconds: number) => PreviewFrame | null;
   /** Loaded media as [start, end] seconds, drawn behind the played part. */
   buffered?: [number, number][];
+  /** Game chapters: the bar breaks between them and the tooltip names the one hovered. */
+  chapters?: VodChapter[];
 }>();
 
 const emit = defineEmits<{
@@ -39,6 +42,12 @@ const length = computed(() => Math.max(props.max, 1));
 const clampValue = (s: number) => Math.min(Math.max(s, 0), length.value);
 const shownValue = computed(() => dragValue.value ?? clampValue(props.value));
 const pct = (s: number) => `${(clampValue(s) / length.value) * 100}%`;
+
+const breaks = computed(() => chapterBreaks(props.chapters ?? [], length.value));
+const tipChapter = computed(() => {
+  if (tipValue.value === null || !props.chapters?.length) return null;
+  return props.chapters[chapterIndexAt(props.chapters, tipValue.value)] ?? null;
+});
 
 const bufferedSpans = computed(() =>
   (props.buffered ?? []).map(([start, end]) => ({
@@ -180,6 +189,13 @@ function onKeydown(e: KeyboardEvent) {
         :class="dragValue !== null ? 'scale-100' : 'scale-0'"
         :style="{ left: pct(shownValue) }"
       />
+      <div
+        v-for="at in breaks"
+        :key="at"
+        class="pointer-events-none absolute inset-y-0 w-0.5 -translate-x-1/2 bg-black/80"
+        :style="{ left: pct(at) }"
+        data-testid="vod-seek-chapter-break"
+      />
     </div>
 
     <div
@@ -188,6 +204,18 @@ function onKeydown(e: KeyboardEvent) {
       :style="{ left: `${tipLeft}px` }"
     >
       <VodPreviewThumb :frame="frame" :width="thumbWidth" />
+      <span
+        v-if="tipChapter"
+        class="flex max-w-56 items-center gap-1.5 rounded bg-black/85 px-1.5 py-0.5 text-[11px] font-medium text-white shadow"
+      >
+        <img
+          v-if="tipChapter.imageUrl"
+          :src="tipChapter.imageUrl"
+          alt=""
+          class="h-4 w-3 shrink-0 rounded-sm object-cover"
+        />
+        <span class="truncate">{{ tipChapter.title }}</span>
+      </span>
       <span
         class="rounded bg-black/85 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-white shadow"
       >

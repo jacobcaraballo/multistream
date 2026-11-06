@@ -600,7 +600,8 @@
       "jumpToLatest": "En yeniye git",
       "wallClock": "Orijinal yayın saati",
       "speed": "Hız",
-      "quality": "Kalite"
+      "quality": "Kalite",
+      "chapters": "Bölümler"
     },
     "sync": {
       "label": "VOD zaman çizelgesi",

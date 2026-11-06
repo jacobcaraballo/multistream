@@ -27,6 +27,19 @@ pub struct Vod {
     pub view_count: Option<u64>,
 }
 
+/// A stretch of a VOD spent on one game (Twitch "chapters").
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct VodChapter {
+    pub start_s: f64,
+    /// None while the chapter is still running on a live recording.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration_s: Option<f64>,
+    pub title: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub image_url: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct VodPage {

@@ -600,7 +600,8 @@
       "jumpToLatest": "Lompat ke terbaru",
       "wallClock": "Waktu siaran asli",
       "speed": "Kecepatan",
-      "quality": "Kualitas"
+      "quality": "Kualitas",
+      "chapters": "Bab"
     },
     "sync": {
       "label": "Linimasa VOD",

@@ -1,6 +1,6 @@
 use super::error::VodError;
 use super::previews::VodPreviews;
-use super::types::{Vod, VodPage};
+use super::types::{Vod, VodChapter, VodPage};
 use super::{kick, twitch};
 use tauri::AppHandle;
 
@@ -53,6 +53,16 @@ pub async fn vod_get_playback_url(
 }
 
 /// Seek-bar preview thumbnails, or `None` when the platform has none for this VOD (yet).
+#[tauri::command]
+pub async fn vod_chapters(platform: String, id: String) -> Result<Vec<VodChapter>, VodError> {
+    match platform.as_str() {
+        "twitch" => twitch::get_chapters(&id).await,
+        // Kick has no chapter markers
+        "kick" => Ok(Vec::new()),
+        other => Err(unsupported(other)),
+    }
+}
+
 #[tauri::command]
 pub async fn vod_previews(platform: String, id: String) -> Result<Option<VodPreviews>, VodError> {
     match platform.as_str() {

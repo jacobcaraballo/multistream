@@ -4,7 +4,7 @@ use serde_json::{json, Value};
 use super::error::VodError;
 use super::previews::{parse_storyboard, VodPreviews};
 use super::proxy::rewrite_master_playlist;
-use super::types::{http_client, is_valid_channel, parse_timestamp_ms, Vod, VodPage};
+use super::types::{http_client, is_valid_channel, parse_timestamp_ms, Vod, VodChapter, VodPage};
 use crate::twitch::web_session::{send_with_session, GQL_URL, WEB_CLIENT_ID};
 
 const PAGE_SIZE: u32 = 30;
@@ -166,6 +166,51 @@ pub async fn get_previews(id: &str) -> Result<Option<VodPreviews>, VodError> {
 
 /// Returns the master playlist as a data URI with every variant routed through the CDN proxy.
 /// With a twitch.tv session, sub-only VODs of subscribed channels become playable.
+/// Game-change chapters of a VOD, in order. A VOD that stayed on one game has none.
+pub async fn get_chapters(id: &str) -> Result<Vec<VodChapter>, VodError> {
+    if !is_valid_vod_id(id) {
+        return Err(VodError::Validation("Invalid Twitch VOD id".into()));
+    }
+    let body = gql(json!({
+        "query": "query($id: ID!) { video(id: $id) { moments(momentRequestType: VIDEO_CHAPTER_MARKERS) { edges { node { description positionMilliseconds durationMilliseconds details { ... on GameChangeMomentDetails { game { displayName boxArtURL(width: 40, height: 53) } } } } } } } }",
+        "variables": { "id": id }
+    }))
+    .await?;
+    Ok(parse_chapters(&body["data"]["video"]))
+}
+
+pub(crate) fn parse_chapters(video: &Value) -> Vec<VodChapter> {
+    let mut chapters: Vec<VodChapter> = video["moments"]["edges"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|edge| {
+            let node = &edge["node"];
+            let start_ms = node["positionMilliseconds"].as_f64()?;
+            let game = &node["details"]["game"];
+            let title = game["displayName"]
+                .as_str()
+                .or_else(|| node["description"].as_str())
+                .filter(|t| !t.is_empty())?
+                .to_string();
+            Some(VodChapter {
+                start_s: (start_ms / 1000.0).max(0.0),
+                duration_s: node["durationMilliseconds"]
+                    .as_f64()
+                    .filter(|ms| *ms > 0.0)
+                    .map(|ms| ms / 1000.0),
+                title,
+                image_url: game["boxArtURL"]
+                    .as_str()
+                    .filter(|url| url.starts_with("https://"))
+                    .map(str::to_string),
+            })
+        })
+        .collect();
+    chapters.sort_by(|a, b| a.start_s.total_cmp(&b.start_s));
+    chapters
+}
+
 pub async fn get_playback_url(id: &str, session: Option<&str>) -> Result<String, VodError> {
     if !is_valid_vod_id(id) {
         return Err(VodError::Validation("Invalid Twitch VOD id".into()));
@@ -210,6 +255,41 @@ pub async fn get_playback_url(id: &str, session: Option<&str>) -> Result<String,
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn should_parse_game_change_chapters_in_order() {
+        // Arrange
+        let video = json!({ "moments": { "edges": [
+            { "node": { "description": "Minecraft", "positionMilliseconds": 6884000, "durationMilliseconds": 0,
+                "details": { "game": { "displayName": "Minecraft", "boxArtURL": "https://static-cdn.jtvnw.net/ttv-boxart/27471-40x53.jpg" } } } },
+            { "node": { "description": "Just Chatting", "positionMilliseconds": 0, "durationMilliseconds": 4647000,
+                "details": { "game": { "displayName": "Just Chatting", "boxArtURL": "javascript:alert(1)" } } } },
+            { "node": { "positionMilliseconds": 10, "details": {} } }
+        ] } });
+
+        // Act
+        let chapters = parse_chapters(&video);
+
+        // Assert
+        assert_eq!(chapters.len(), 2);
+        assert_eq!(chapters[0].title, "Just Chatting");
+        assert_eq!(chapters[0].duration_s, Some(4647.0));
+        assert_eq!(chapters[0].image_url, None);
+        assert_eq!(chapters[1].start_s, 6884.0);
+        assert_eq!(chapters[1].duration_s, None);
+        assert!(chapters[1]
+            .image_url
+            .as_deref()
+            .unwrap()
+            .starts_with("https://"));
+    }
+
+    #[test]
+    fn should_have_no_chapters_without_moments() {
+        // Act / Assert
+        assert!(parse_chapters(&json!(null)).is_empty());
+        assert!(parse_chapters(&json!({ "moments": { "edges": [] } })).is_empty());
+    }
 
     fn node(status: &str, thumb: &str) -> Value {
         json!({

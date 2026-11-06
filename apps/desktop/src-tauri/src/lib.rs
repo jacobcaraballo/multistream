@@ -50,7 +50,7 @@ use network::check_network_connectivity;
 
 mod vod;
 use vod::chat::vod_chat;
-use vod::commands::{vod_get, vod_get_playback_url, vod_list, vod_previews};
+use vod::commands::{vod_chapters, vod_get, vod_get_playback_url, vod_list, vod_previews};
 
 // fixed port
 const LOCALHOST_PORT: u16 = 14831;
@@ -201,6 +201,7 @@ pub fn run() {
             vod_get,
             vod_get_playback_url,
             vod_previews,
+            vod_chapters,
             vod_chat,
             twitch_web_session_state,
             twitch_web_login,

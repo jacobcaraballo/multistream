@@ -56,6 +56,7 @@ commands.allow = [
     "vod_get",
     "vod_get_playback_url",
     "vod_previews",
+    "vod_chapters",
     "vod_chat",
     "twitch_web_session_state",
     "twitch_web_login",

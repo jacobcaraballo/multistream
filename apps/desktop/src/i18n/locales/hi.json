@@ -600,7 +600,8 @@
       "jumpToLatest": "नवीनतम पर जाएँ",
       "wallClock": "मूल प्रसारण समय",
       "speed": "स्पीड",
-      "quality": "क्वालिटी"
+      "quality": "क्वालिटी",
+      "chapters": "अध्याय"
     },
     "sync": {
       "label": "VOD टाइमलाइन",

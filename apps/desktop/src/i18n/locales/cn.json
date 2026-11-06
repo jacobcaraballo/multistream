@@ -600,7 +600,8 @@
       "jumpToLatest": "跳到最新",
       "wallClock": "原始直播时间",
       "speed": "速度",
-      "quality": "画质"
+      "quality": "画质",
+      "chapters": "章节"
     },
     "sync": {
       "label": "录像时间轴",

@@ -600,7 +600,8 @@
       "jumpToLatest": "Aller au plus récent",
       "wallClock": "Heure de diffusion d'origine",
       "speed": "Vitesse",
-      "quality": "Qualité"
+      "quality": "Qualité",
+      "chapters": "Chapitres"
     },
     "sync": {
       "label": "Chronologie des VODs",

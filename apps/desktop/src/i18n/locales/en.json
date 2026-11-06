@@ -600,7 +600,8 @@
       "jumpToLatest": "Jump to latest",
       "wallClock": "Original broadcast time",
       "speed": "Speed",
-      "quality": "Quality"
+      "quality": "Quality",
+      "chapters": "Chapters"
     },
     "sync": {
       "label": "VOD timeline",

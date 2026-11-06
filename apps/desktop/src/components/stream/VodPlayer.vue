@@ -26,6 +26,7 @@ import {
   RotateCw,
   SkipForward,
   Clock,
+  ListVideo,
 } from "@lucide/vue";
 import { PLATFORMS } from "@/config/platforms";
 import { useVodSync } from "@/composables/useVodSync";
@@ -38,6 +39,8 @@ import { formatClock, formatSpan, stripEndlist, vodErrorKey, type Vod } from "@/
 import { LIVE_EDGE_BUFFER_MS, PLAYBACK_SPEEDS, mediaTarget } from "@/lib/vodSync";
 import { previewAt, type VodPreviews } from "@/lib/vodPreviews";
 import { loadVodPreviews } from "@/composables/useVodPreviews";
+import { loadVodChapters } from "@/composables/useVodChapters";
+import { chapterIndexAt, type VodChapter } from "@/lib/vodChapters";
 import { withDropRetry } from "@/lib/hlsRetry";
 import VodSeekBar from "./VodSeekBar.vue";
 
@@ -72,6 +75,7 @@ const isFullscreen = computed(() => layout.isMain(props.streamId));
 
 const videoRef = ref<HTMLVideoElement | null>(null);
 const settingsMenuRef = ref<HTMLDivElement | null>(null);
+const chaptersMenuRef = ref<HTMLDivElement | null>(null);
 
 const isLoading = ref(true);
 const isBuffering = ref(false);
@@ -114,6 +118,10 @@ let resumeTime = 0;
 let currentLoadId = 0;
 let isDisposed = false;
 
+onClickOutside(chaptersMenuRef, () => {
+  chaptersMenuOpen.value = false;
+});
+
 onClickOutside(settingsMenuRef, () => {
   settingsMenuOpen.value = false;
 });
@@ -155,6 +163,24 @@ const overlay = computed(() => {
 const seekValue = computed(() => Math.min(currentTime.value, endS.value));
 
 const previews = shallowRef<VodPreviews | null>(null);
+
+// Twitch game chapters: breaks on the seek bar and a menu to jump between them
+const chapters = shallowRef<VodChapter[]>([]);
+const chaptersMenuOpen = ref(false);
+const currentChapterIndex = computed(() => chapterIndexAt(chapters.value, currentTime.value));
+const currentChapter = computed(() => chapters.value[currentChapterIndex.value] ?? null);
+
+function loadChapters() {
+  if (props.vod.platform !== "twitch") return;
+  loadVodChapters(props.vod).then((loaded) => {
+    if (!isDisposed) chapters.value = loaded;
+  });
+}
+
+function jumpToChapter(chapter: VodChapter) {
+  chaptersMenuOpen.value = false;
+  onSeekCommit(chapter.startS);
+}
 
 function loadPreviews() {
   loadVodPreviews(props.vod).then((loaded) => {
@@ -528,13 +554,15 @@ function resetHideTimer() {
   if (hideTimer) clearTimeout(hideTimer);
   showControls.value = true;
   hideTimer = setTimeout(() => {
-    if (!settingsMenuOpen.value && scrubValue.value === null) showControls.value = false;
+    if (!settingsMenuOpen.value && !chaptersMenuOpen.value && scrubValue.value === null)
+      showControls.value = false;
   }, 2500);
 }
 
 function onMouseLeave() {
   if (hideTimer) clearTimeout(hideTimer);
-  if (!settingsMenuOpen.value && scrubValue.value === null) showControls.value = false;
+  if (!settingsMenuOpen.value && !chaptersMenuOpen.value && scrubValue.value === null)
+    showControls.value = false;
 }
 
 function handleVideoClick() {
@@ -688,6 +716,7 @@ onMounted(() => {
     });
   }
   loadVod();
+  loadChapters();
   stallTimer = setInterval(checkStall, STALL_CHECK_MS);
   window.addEventListener("multistream-reload-stream", onStreamReloadEvent);
 });
@@ -851,9 +880,15 @@ onBeforeUnmount(() => {
             :compact="isCompact"
             :preview-for="previewFor"
             :buffered="bufferedRanges"
+            :chapters="chapters"
             class="mb-1.5"
             :data-testid="`vod-seek-${vod.id}`"
-            @hover="loadPreviews"
+            @hover="
+              () => {
+                loadPreviews();
+                if (isRecording) loadChapters();
+              }
+            "
             @scrub="(s) => (scrubValue = s)"
             @commit="onSeekCommit"
             @skip="onSeekSkip"
@@ -921,7 +956,72 @@ onBeforeUnmount(() => {
               {{ t("vods.player.jumpToLatest") }}
             </button>
 
-            <div ref="settingsMenuRef" class="relative" :class="{ 'ml-auto': !isRecording }">
+            <div
+              v-if="chapters.length > 1"
+              ref="chaptersMenuRef"
+              class="relative min-w-0"
+              :class="{ 'ml-auto': !isRecording }"
+            >
+              <button
+                type="button"
+                class="text-white/90 hover:text-white transition-colors cursor-pointer p-1 flex min-w-0 items-center gap-1.5"
+                :aria-label="t('vods.player.chapters')"
+                :aria-expanded="chaptersMenuOpen"
+                :title="currentChapter ? currentChapter.title : t('vods.player.chapters')"
+                :data-testid="`vod-chapters-${vod.id}`"
+                @click="chaptersMenuOpen = !chaptersMenuOpen"
+              >
+                <ListVideo class="size-4 shrink-0" />
+                <span
+                  v-if="!isCompact && currentChapter"
+                  class="max-w-36 truncate text-xs text-gray-300"
+                  >{{ currentChapter.title }}</span
+                >
+              </button>
+              <Transition name="hud-fade">
+                <div
+                  v-if="chaptersMenuOpen"
+                  class="absolute bottom-full right-0 mb-2 w-60 max-h-60 overflow-y-auto bg-[#1a1c20]/95 backdrop-blur-md border border-white/10 rounded-lg py-1 shadow-xl"
+                  role="menu"
+                  :aria-label="t('vods.player.chapters')"
+                >
+                  <p class="px-3 pt-1 pb-0.5 text-[10px] uppercase tracking-wider text-gray-500">
+                    {{ t("vods.player.chapters") }}
+                  </p>
+                  <button
+                    v-for="(chapter, chapterIndex) in chapters"
+                    :key="chapter.startS"
+                    type="button"
+                    role="menuitem"
+                    class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs cursor-pointer transition-colors"
+                    :class="
+                      chapterIndex === currentChapterIndex
+                        ? 'text-white bg-white/10'
+                        : 'text-gray-300 hover:bg-white/5 hover:text-white'
+                    "
+                    :data-testid="`vod-chapter-${chapterIndex}`"
+                    @click="jumpToChapter(chapter)"
+                  >
+                    <img
+                      v-if="chapter.imageUrl"
+                      :src="chapter.imageUrl"
+                      alt=""
+                      class="h-7 w-5 shrink-0 rounded-sm object-cover"
+                    />
+                    <span class="min-w-0 flex-1 truncate">{{ chapter.title }}</span>
+                    <span class="shrink-0 tabular-nums text-gray-500">{{
+                      formatClock(chapter.startS)
+                    }}</span>
+                  </button>
+                </div>
+              </Transition>
+            </div>
+
+            <div
+              ref="settingsMenuRef"
+              class="relative"
+              :class="{ 'ml-auto': !isRecording && chapters.length <= 1 }"
+            >
               <button
                 type="button"
                 class="text-white/90 hover:text-white transition-colors cursor-pointer p-1 flex items-center gap-1"
